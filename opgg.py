@@ -10,7 +10,7 @@ st.set_page_config(page_title="OP.GG 챔피언 요약", layout="wide")
 st.title("🔥 OP.GG 챔피언 분석기")
 
 # --- 입력 ---
-user_input = st.text_input("소환사 이름을 입력하세요 (예: lasund72#7227)", value="")
+user_input = st.text_input("소환사 이름을 입력하세요", value="")
 
 if not user_input or "#" not in user_input:
     st.info("닉네임#태그 형태로 입력해주세요. 예: Hide on bush#KR1")
