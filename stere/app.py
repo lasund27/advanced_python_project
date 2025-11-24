@@ -84,7 +84,7 @@ if not API_KEY:
     st.stop()
 
 # 메뉴 선택
-menu = st.sidebar.radio("메뉴 선택", ["🛡️ 숙련도/랭크", "🏆 도전과제"])
+menu = st.sidebar.radio("메뉴 선택", ["🏆 도전과제"])
 
 # 검색창
 riot_id = st.text_input("Riot ID 입력 (이름#태그)", value="hide on bush#KR1")
@@ -146,45 +146,6 @@ if riot_id:
                         st.info("달성한 도전과제가 없습니다.")
                 else:
                     st.error("❌ 도전과제 정보를 불러올 수 없습니다.")
-
-            # --- 🛡️ 숙련도/랭크 페이지 ---
-            elif menu == "🛡️ 숙련도/랭크":
-                st.title(f"🛡️ {game_name}님의 정보")
-                
-                summoner_id = get_summoner_id(puuid)
-                
-                # 랭크
-                if summoner_id:
-                    rank_data = get_rank_data(summoner_id)
-                    col1, col2 = st.columns(2)
-                    solo, flex = "Unranked", "Unranked"
-                    
-                    if rank_data:
-                        for r in rank_data:
-                            info = f"{r['tier']} {r['rank']} ({r['leaguePoints']} LP)"
-                            if r['queueType'] == 'RANKED_SOLO_5x5': solo = info
-                            elif r['queueType'] == 'RANKED_FLEX_SR': flex = info
-                            
-                    col1.metric("솔로 랭크", solo)
-                    col2.metric("자유 랭크", flex)
-                
-                st.divider()
-                
-                # 숙련도
-                st.subheader("🔥 Top 5 숙련도")
-                mastery = get_mastery_data(puuid)
-                
-                if mastery:
-                    m_list = []
-                    for m in mastery:
-                        m_list.append({
-                            "ID": m['championId'],
-                            "레벨": m['championLevel'],
-                            "점수": f"{m['championPoints']:,}"
-                        })
-                    st.dataframe(pd.DataFrame(m_list), use_container_width=True, hide_index=True)
-                else:
-                    st.info("숙련도 정보가 없습니다.")
 
     except Exception as e:
         st.error(f"오류 발생: {e}")
