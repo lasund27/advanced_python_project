@@ -1,0 +1,332 @@
+id,name
+1,Apprentice
+10100006,ARAM God
+10110005,Unstoppable
+10110403,Angel of Mercy
+10120005,Swift
+10120303,Avalanche
+10120601,Poroyalty
+10130005,Abyssal
+10130604,Untouchable
+10300006,Galaxy Brain
+10310005,Stylish
+10320005,Innovative
+10320103,Alcove Gamer
+10320303,Flashy
+10320503,Survivor
+10320704,Ace
+10330005,Tactical
+10330404,Disrespectful
+12000006,Bot Blaster
+12100007,Turing Tested
+20100006,Lethal
+20100204,Minion
+20100304,Unkillable Demon
+20200006,G.O.A.T.
+20210005,Dominant
+20210104,Spitfire
+20220005,Unrivaled
+202200006,Challenjour '22
+20220204,Scout
+20230005,Perfect
+202300006,Challenjour '23
+20230204,Prodigy
+202410007,Voidborn
+20242007,Infernal
+20243007,Challenjour '24
+20300006,Legend
+20310005,Show-Off
+20310203,Fancy Feet
+20310302,Captain Jack
+20320005,Behemoth
+20320104,Absolute Unit
+20330005,Maverick
+20330103,Lone Wolf
+20330204,Lucky
+20340005,Predator
+20340502,Crab Wrangler
+20340804,Invader
+20400006,Mastermind
+20410005,Cornerstone
+20410204,All-Seeing
+20420005,Visionary
+20420202,Ward Warden
+21000006,Top Tier
+21000104,S+
+21000406,Masterful
+21000506,KDA Player
+30100006,Tenacious
+30110005,Big Game Hunter
+30110102,Epic
+30110203,Early Bird
+30120005,Courageous
+30120104,Comeback Kid
+30120203,Uninhibited
+30120504,Incendiary
+30130005,Exceptional
+30130106,Flawless
+30130503,Jitterbug
+30200006,Playmaker
+30210005,Strategist
+30210203,Champ Farmer
+30210504,In Control
+30220005,Demolisher
+30220204,Lumberjack
+30230005,Synergized
+30230103,Fanatic
+30230302,Guardian Angel
+30230504,Insec-ticide
+30240005,Spirited
+30240402,Party Crasher
+30300006,Team Player
+30320005,Clash Master
+30320103,Clasher
+30330005,In Sync
+30340005,Harmonious
+30350005,Runeterran
+40100006,Sage
+40110005,Guru
+40110104,Champ Master
+40110504,Deep Diver
+40110704,Omni-master
+40120005,Peerless
+40120104,Deathmaster
+40120204,Warlord
+40120304,Archmage
+40120404,Deadeye
+40120504,Warden
+40120604,Juggernaut
+40120704,Reaper
+40120804,Conqueror
+40120904,Supreme Sorcerer
+40121004,Sharpshooter
+40121104,Ultimate Guardian
+40121204,Colossus
+40130005,Just Better
+40130104,Jungle Diff
+40130204,Support Diff
+40130304,Bot Diff
+40130404,Mid Diff
+40130504,Top Diff
+40130604,Player Diff
+40200006,Veteran
+40210005,Executioner
+40210604,Pentakiller
+40210903,Bloodthirsty
+40220005,Commando
+40220104,Thief
+40240005,Resourceful
+40240603,Mythic
+40240802,Bounty Hunter
+40250005,Enchanted
+40250104,Protector
+50200005,Overachiever
+50200104,Titular
+50400005,Treasurer
+50400204,Iconic
+50500005,Collector
+51000006,Connoisseur
+51000203,Companion
+51000603,Elegant
+51000904,Trendsetter
+51001104,Fashionista
+60100004,Arena Brawler
+60200004,Arena Champion
+60200307,Arena God
+60300007,Swarm Survivor
+1400,Dragon in Disguise
+1401,Broccoli Baron
+1402,Final Boss Faker
+1403,Piltover's Most Wanted
+1404,Warrior of Noxus
+1405,Mom's #1 Fan
+1406,Unconquered King
+1407,Black Rose Initiate
+1408,The Demon's Hand
+1409,Silly Lil' Gamer
+1410,Emporium Enjoyer
+1411,Guiding Light
+1412,Shushei Forever
+1413,Crazy Little Dog
+1414,YYDS
+1415,The Grovemother's Grace
+1416,Rage Incarnate
+1417,Discipline of Twilight
+1418,Definitely Not A Bot
+1419,League Partner
+1420,We are League
+1421,Hand Leveled Account
+1422,Arcane Anomaly
+2000266,The Darkin Blade
+2000103,The Nine-Tailed Fox
+2000084,The Rogue Assassin
+2000166,The Rogue Sentinel
+2000012,The Minotaur
+2000799,Matriarch of War
+2000032,The Sad Mummy
+2000034,The Cryophoenix
+2000001,The Dark Child
+2000523,The Weapon of the Faithful
+2000022,The Frost Archer
+2000136,The Star Forger
+2000893,The Witch Between Worlds
+2000268,The Emperor of the Sands
+2000432,The Wandering Caretaker
+2000200,The Empress of the Void
+2000053,The Great Steam Golem
+2000063,The Burning Vengeance
+2000201,The Heart of the Freljord
+2000233,The Restrained Hunger
+2000051,The Sheriff of Piltover
+2000164,The Steel Shadow
+2000069,The Serpent's Embrace
+2000031,The Terror of the Void
+2000042,The Daring Bombardier
+2000122,The Hand of Noxus
+2000131,Scorn of the Moon
+2000036,The Madman of Zaun
+2000119,The Glorious Executioner
+2000245,The Boy Who Shattered Time
+2000060,The Spider Queen
+2000028,Agony's Embrace
+2000081,The Prodigal Explorer
+2000009,The Ancient Fear
+2000114,The Grand Duelist
+2000105,The Tidal Trickster
+2000003,The Colossus
+2000041,The Saltwater Scourge
+2000086,The Might of Demacia
+2000150,The Missing Link
+2000079,The Rabble Rouser
+2000104,The Outlaw
+2000887,The Hallowed Seamstress
+2000120,The Shadow of War
+2000074,The Revered Inventor
+2000910,The Visionary
+2000420,The Kraken Priestess
+2000039,The Blade Dancer
+2000427,The Green Father
+2000040,The Storm's Fury
+2000059,The Exemplar of Demacia
+2000024,Grandmaster at Arms
+2000126,The Defender of Tomorrow
+2000202,The Virtuoso
+2000222,The Loose Cannon
+2000897,The Pride of Nazumah
+2000145,Daughter of the Void
+2000429,The Spear of Vengeance
+2000043,The Enlightened One
+2000030,The Deathsinger
+2000038,The Void Walker
+2000055,The Sinister Blade
+2000010,The Righteous
+2000141,The Shadow Reaper
+2000085,The Heart of the Tempest
+2000121,The Voidreaver
+2000203,The Eternal Hunters
+2000240,The Cantankerous Cavalier
+2000096,The Mouth of the Abyss
+2000007,The Deceiver
+2000064,The Blind Monk
+2000089,The Radiant Dawn
+2000876,The Bashful Bloom
+2000127,The Ice Witch
+2000236,The Purifier
+2000117,The Fae Sorceress
+2000099,The Lady of Luminosity
+2000054,Shard of the Monolith
+2000090,The Prophet of the Void
+2000057,The Twisted Treant
+2000011,The Wuju Bladesman
+2000800,The Soul's Reflection
+2000902,The Gentle Flame
+2000021,The Bounty Hunter
+2000062,The Monkey King
+2000082,The Iron Revenant
+2000025,The Fallen
+2000950,The Hound of a Hundred Bites
+2000267,The Tidecaller
+2000075,The Curator of the Sands
+2000111,The Titan of the Depths
+2000518,The Curious Chameleon
+2000076,The Bestial Huntress
+2000895,The Joy Unbound
+2000056,The Eternal Nightmare
+2000020,The Boy and His Yeti
+2000002,The Berserker
+2000061,The Lady of Clockwork
+2000516,The Fire Below the Mountain
+2000080,The Unbreakable Spear
+2000078,Keeper of the Hammer
+2000555,The Bloodharbor Ripper
+2000246,Empress of the Elements
+2000133,Demacia's Wings
+2000497,The Charmer
+2000033,The Armordillo
+2000421,The Void Burrower
+2000526,The Iron Maiden
+2000888,The Chem-Baroness
+2000058,The Butcher of the Sands
+2000107,The Pridestalker
+2000092,The Exile
+2000068,The Mechanized Menace
+2000013,The Rune Mage
+2000360,The Desert Rose
+2000113,Fury of the North
+2000235,The Redeemer
+2000147,The Starry-Eyed Songstress
+2000875,The Boss
+2000035,The Demon Jester
+2000098,The Eye of Twilight
+2000102,The Half-Dragon
+2000027,The Mad Chemist
+2000014,The Undead Juggernaut
+2000015,The Battle Mistress
+2000072,The Primordial Sovereign
+2000901,The Fiery Fledgling
+2000037,Maven of the Strings
+2000016,The Starchild
+2000050,The Noxian Grand General
+2000517,The Unshackled
+2000134,The Dark Sovereign
+2000223,The River King
+2000163,The Stoneweaver
+2000091,The Blade's Shadow
+2000044,The Shield of Valoran
+2000017,The Swift Scout
+2000412,The Chain Warden
+2000018,The Yordle Gunner
+2000048,The Troll King
+2000023,The Barbarian King
+2000004,The Card Master
+2000029,The Plague Rat
+2000077,The Spirit Walker
+2000006,The Dreadnought
+2000110,The Arrow of Retribution
+2000067,The Night Hunter
+2000045,The Tiny Master of Evil
+2000161,The Eye of the Void
+2000711,The Gloomist
+2000254,The Piltover Enforcer
+2000234,The Ruined King
+2000112,The Herald of the Arcane
+2000008,The Crimson Reaper
+2000106,The Relentless Storm
+2000019,The Uncaged Wrath of Zaun
+2000498,The Rebel
+2000101,The Magus Ascendant
+2000005,The Seneschal of Demacia
+2000157,The Unforgiven
+2000777,The Unforgotten
+2000083,Shepherd of Souls
+2000804,The Unbroken Faith
+2000350,The Magical Cat
+2000904,The Unsundered
+2000154,The Secret Weapon
+2000238,The Master of Shadows
+2000221,The Spark of Zaun
+2000115,The Hexplosives Expert
+2000026,The Chronokeeper
+2000142,The Aspect of Twilight
+2000143,Rise of the Thorns
+60300705,Swarm Conqueror
