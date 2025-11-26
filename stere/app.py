@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import urllib.parse
 import pandas as pd
+import os
 
 # --- (전역) 설정 ---
 # secrets.toml에서 API 키 가져오기
@@ -18,7 +19,23 @@ HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
-# --- API 함수들 ---
+# --- API 및 데이터 로드 함수들 ---
+
+@st.cache_data
+def load_challenge_names():
+    """lol_challenges.csv 파일을 읽어서 ID:이름 딕셔너리로 반환"""
+    csv_file = "lol_challenges.csv"
+    if not os.path.exists(csv_file):
+        return {}
+    
+    try:
+        # CSV 파일 로드 (id, name 컬럼이 있다고 가정)
+        df = pd.read_csv(csv_file)
+        # 딕셔너리 형태로 변환 {10100006: 'ARAM God', ...} 
+        return dict(zip(df['id'], df['name']))
+    except Exception as e:
+        st.error(f"CSV 로드 중 오류 발생: {e}")
+        return {}
 
 @st.cache_data(ttl=3600)
 def get_puuid(game_name, tag_line):
@@ -36,36 +53,9 @@ def get_puuid(game_name, tag_line):
         return None
 
 @st.cache_data(ttl=3600)
-def get_summoner_id(puuid):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json()['id'] if response.status_code == 200 else None
-    except: return None
-
-@st.cache_data(ttl=3600)
 def get_challenge_data(puuid):
     if not API_KEY: return None
     url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/challenges/v1/player-data/{puuid}"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json() if response.status_code == 200 else None
-    except: return None
-
-@st.cache_data(ttl=3600)
-def get_mastery_data(puuid):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count=5"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json() if response.status_code == 200 else None
-    except: return None
-
-@st.cache_data(ttl=3600)
-def get_rank_data(summoner_id):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}"
     try:
         response = requests.get(url, headers=HEADERS)
         return response.json() if response.status_code == 200 else None
@@ -109,7 +99,10 @@ if riot_id:
             if menu == "🏆 도전과제":
                 st.title(f"🏆 {game_name}님의 도전과제")
                 
+                # 도전과제 데이터 API 호출
                 challenges = get_challenge_data(puuid)
+                # CSV에서 이름 매핑 데이터 로드 (추가된 부분)
+                challenge_name_map = load_challenge_names()
                 
                 if challenges:
                     total = challenges.get('totalPoints', {})
@@ -122,24 +115,34 @@ if riot_id:
                     
                     for c in challenges.get('challenges', []):
                         lvl = c.get('level', 'NONE')
+                        c_id = c.get('challengeId')
+                        
+                        # 아이콘 URL 처리
                         icon_url = f"{base_url}{lvl.lower()}.png" if lvl != 'NONE' else ""
+                        
+                        # ID를 이름으로 변환 (없으면 ID 그대로 표시)
+                        c_name = challenge_name_map.get(c_id, f"Unknown ID ({c_id})")
+
                         items.append({
                             "아이콘": icon_url,
-                            "ID": c.get('challengeId'),
+                            "도전과제명": c_name,  # ID 대신 이름 사용
                             "등급": lvl,
                             "점수": c.get('current')
                         })
                     
                     if items:
+                        # 데이터프레임 생성
+                        df_items = pd.DataFrame(items)
+                        
                         st.dataframe(
-                            pd.DataFrame(items),
+                            df_items,
                             column_config={
                                 "아이콘": st.column_config.ImageColumn("등급", width="small"),
-                                "ID": st.column_config.NumberColumn("ID", format="%d"),
+                                "도전과제명": st.column_config.TextColumn("도전과제명"),
                                 "점수": st.column_config.NumberColumn("점수", format="%d")
                             },
                             use_container_width=True,
-                            column_order=("아이콘", "ID", "등급", "점수"),
+                            column_order=("아이콘", "도전과제명", "등급", "점수"), # 순서 변경
                             hide_index=True
                         )
                     else:
