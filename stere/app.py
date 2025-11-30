@@ -3,149 +3,157 @@ import requests
 import urllib.parse
 import pandas as pd
 
-# --- (전역) 설정 ---
-# secrets.toml에서 API 키 가져오기
-API_KEY = st.secrets.get("API_KEY", "")
+# --- 페이지 설정 ---
+st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", layout="wide")
 
-# 서버 주소 설정
-REGION_API = "asia"      # 계정 검색용 (PUUID)
-REGION_PLATFORM = "kr"   # 도전과제/랭크/숙련도용
+# --- 헤더 & 초기화 버튼 ---
+col_title, col_btn = st.columns([4, 1])
+with col_title:
+    st.title("🏆 롤 도전과제 검색기")
+with col_btn:
+    if st.button("🗑️ 데이터 초기화", help="문제가 생기면 누르세요"):
+        st.cache_data.clear()
+        st.rerun()
 
-# API 요청 헤더 (User-Agent 포함)
+# --- API 키 설정 ---
+st.sidebar.header("🔑 설정")
+if "API_KEY" in st.secrets:
+    API_KEY = st.secrets["API_KEY"]
+else:
+    API_KEY = st.sidebar.text_input("API Key 입력 (RGAPI-...)", type="password")
+
+if not API_KEY:
+    st.warning("👈 왼쪽 사이드바에 API 키를 입력해주세요.")
+    st.stop()
+
+# --- 설정 ---
+REGION_ACCOUNT = "asia"
+REGION_KR = "kr"
 HEADERS = {
     "X-Riot-Token": API_KEY,
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
-# --- API 함수들 ---
+# --- API 함수 ---
 
 @st.cache_data(ttl=3600)
 def get_puuid(game_name, tag_line):
-    if not API_KEY: return None
-    encoded_name = urllib.parse.quote(game_name)
-    encoded_tag = urllib.parse.quote(tag_line)
-    url = f"https://{REGION_API}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{encoded_name}/{encoded_tag}"
-    
+    url = f"https://{REGION_ACCOUNT}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{urllib.parse.quote(game_name)}/{urllib.parse.quote(tag_line)}"
     try:
-        response = requests.get(url, headers=HEADERS)
-        if response.status_code == 200:
-            return response.json()['puuid']
+        res = requests.get(url, headers=HEADERS)
+        return res.json().get('puuid') if res.status_code == 200 else None
+    except: return None
+
+@st.cache_data(ttl=3600)
+def get_player_data(puuid):
+    url = f"https://{REGION_KR}.api.riotgames.com/lol/challenges/v1/player-data/{puuid}"
+    try:
+        res = requests.get(url, headers=HEADERS)
+        return res.json() if res.status_code == 200 else None
+    except: return None
+
+@st.cache_data(ttl=86400)
+def get_all_challenge_config():
+    url = f"https://{REGION_KR}.api.riotgames.com/lol/challenges/v1/challenges/config"
+    try:
+        res = requests.get(url, headers=HEADERS)
+        if res.status_code == 200:
+            data = res.json()
+            return {str(item['id']): item for item in data}
         return None
-    except:
-        return None
-
-@st.cache_data(ttl=3600)
-def get_summoner_id(puuid):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json()['id'] if response.status_code == 200 else None
     except: return None
 
-@st.cache_data(ttl=3600)
-def get_challenge_data(puuid):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/challenges/v1/player-data/{puuid}"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json() if response.status_code == 200 else None
-    except: return None
+# --- 실행 로직 ---
 
-@st.cache_data(ttl=3600)
-def get_mastery_data(puuid):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count=5"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json() if response.status_code == 200 else None
-    except: return None
+with st.spinner("사전 데이터 로드 중..."):
+    config_map = get_all_challenge_config()
 
-@st.cache_data(ttl=3600)
-def get_rank_data(summoner_id):
-    if not API_KEY: return None
-    url = f"https://{REGION_PLATFORM}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        return response.json() if response.status_code == 200 else None
-    except: return None
-
-# --- 화면 구성 (GUI) ---
-
-st.set_page_config(page_title="롤 전적 검색", page_icon="🎮")
-
-st.sidebar.title("🎮 롤 전적 검색기")
-st.sidebar.caption("팀원: 이주현, 황보현준")
-
-# API 키 확인
-if not API_KEY:
-    st.error("⚠️ API 키가 없습니다! `secrets.toml` 파일을 확인하세요.")
+if not config_map:
+    st.error("🚨 API 키가 만료되었거나 데이터를 가져오지 못했습니다.")
     st.stop()
 
-# 메뉴 선택
-menu = st.sidebar.radio("메뉴 선택", ["🏆 도전과제"])
-
-# 검색창
-riot_id = st.text_input("Riot ID 입력 (이름#태그)", value="hide on bush#KR1")
+riot_id = st.text_input("Riot ID 입력 (예: hide on bush#KR1)", value="hide on bush#KR1")
 
 if riot_id:
-    try:
-        if "#" not in riot_id:
-            st.warning("형식이 틀렸습니다. `이름#태그` 형식으로 입력하세요.")
+    if "#" not in riot_id:
+        st.error("형식 오류: `이름#태그` 형식으로 입력해주세요.")
+        st.stop()
+        
+    name, tag = riot_id.split('#')
+    
+    with st.spinner(f"🔍 {name}님의 정보를 찾는 중..."):
+        puuid = get_puuid(name, tag)
+        
+        if not puuid:
+            st.error("❌ 사용자를 찾을 수 없습니다.")
             st.stop()
             
-        game_name, tag_line = riot_id.split('#')
+        user_data = get_player_data(puuid)
         
-        with st.spinner("데이터 조회 중..."):
-            # 1. PUUID 조회
-            puuid = get_puuid(game_name, tag_line)
+        if user_data:
+            st.divider()
             
-            if not puuid:
-                st.error("❌ 소환사를 찾을 수 없습니다. (키 만료 또는 오타)")
-                st.stop()
-
-            # --- 🏆 도전과제 페이지 ---
-            if menu == "🏆 도전과제":
-                st.title(f"🏆 {game_name}님의 도전과제")
+            # 요약 정보
+            total = user_data.get('totalPoints', {})
+            
+            # [수정완료] 여기에 괄호 ) 를 확실하게 닫았습니다!
+            col1, col2, col3 = st.columns(3)
+            
+            col1.metric("총 점수", f"{total.get('current', 0):,} 점")
+            col2.metric("전체 등급", f"{total.get('level', 'Unknown')}")
+            col3.metric("상위 퍼센트", f"{total.get('percentile', 0) * 100:.1f}%")
+            
+            st.subheader("📜 상세 목록")
+            
+            items = []
+            
+            for challenge in user_data.get('challenges', []):
+                c_id = challenge.get('challengeId')
                 
-                challenges = get_challenge_data(puuid)
+                # Config에서 이름 찾기
+                c_info = config_map.get(str(c_id))
                 
-                if challenges:
-                    total = challenges.get('totalPoints', {})
-                    st.metric("총 점수", f"{total.get('current', 0):,} 점", f"등급: {total.get('level', 'Unknown')}")
-                    st.divider()
-                    st.subheader("📜 상세 목록")
-                    
-                    items = []
-                    base_url = "https://ddragon.leagueoflegends.com/cdn/img/challenges-images/"
-                    
-                    for c in challenges.get('challenges', []):
-                        lvl = c.get('level', 'NONE')
-                        icon_url = f"{base_url}{lvl.lower()}.png" if lvl != 'NONE' else ""
-                        items.append({
-                            "아이콘": icon_url,
-                            "ID": c.get('challengeId'),
-                            "등급": lvl,
-                            "점수": c.get('current')
-                        })
-                    
-                    if items:
-                        st.dataframe(
-                            pd.DataFrame(items),
-                            column_config={
-                                "아이콘": st.column_config.ImageColumn("등급", width="small"),
-                                "ID": st.column_config.NumberColumn("ID", format="%d"),
-                                "점수": st.column_config.NumberColumn("점수", format="%d")
-                            },
-                            use_container_width=True,
-                            column_order=("아이콘", "ID", "등급", "점수"),
-                            hide_index=True
-                        )
-                    else:
-                        st.info("달성한 도전과제가 없습니다.")
-                else:
-                    st.error("❌ 도전과제 정보를 불러올 수 없습니다.")
+                c_name = f"ID: {c_id}"
+                c_desc = ""
+                
+                if c_info:
+                    names = c_info.get('localizedNames', {})
+                    ko_info = names.get('ko_KR') or names.get('en_US') or {}
+                    c_name = ko_info.get('name', c_name)
+                    c_desc = ko_info.get('description', '')
 
-    except Exception as e:
-        st.error(f"오류 발생: {e}")
+                # 점수 가져오기
+                final_score = challenge.get('value')
+
+                # 카테고리(0~5번) 설명 추가
+                if c_id <= 5:
+                    c_desc = "📊 카테고리 합산 점수" 
+
+                lvl = challenge.get('level', 'NONE')
+                
+                items.append({
+                    "도전과제명": c_name,
+                    "등급": lvl,
+                    "점수": final_score,
+                    "설명": c_desc
+                })
+            
+            if items:
+                st.dataframe(
+                    pd.DataFrame(items),
+                    column_config={
+                        "도전과제명": st.column_config.TextColumn("도전과제명", width="medium"),
+                        "등급": st.column_config.TextColumn("등급", width="small"),
+                        "점수": st.column_config.NumberColumn("점수/진행도", format="%.0f"),
+                        "설명": st.column_config.TextColumn("설명", width="large")
+                    },
+                    use_container_width=True,
+                    # 아이콘 컬럼 제거됨
+                    column_order=("도전과제명", "등급", "점수", "설명"),
+                    hide_index=True
+                )
+            else:
+                st.info("데이터가 없습니다.")
+        else:
+            st.error("❌ 정보를 불러오지 못했습니다.")
