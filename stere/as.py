@@ -3,6 +3,9 @@ import requests
 import urllib.parse
 import plotly.graph_objects as go
 import math
+import random
+import textwrap
+import time
 
 # --- 페이지 설정 ---
 st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", layout="wide")
@@ -10,15 +13,15 @@ st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", la
 # --- 커스텀 CSS ---
 st.markdown("""
 <style>
-    /* 1. 전체 다크 테마 적용 */
+    /* 전체 스타일 */
     .stApp { background-color: #010a13; color: #c8aa6e; }
     .block-container { padding-top: 2rem !important; max-width: 1200px; }
     
-    /* 2. 사이드바 스타일 */
+    /* 사이드바 */
     [data-testid="stSidebar"] { background-color: #091428; border-right: 1px solid #1e282d; }
     [data-testid="stSidebar"] * { color: #cdbe91 !important; }
 
-    /* 3. 도전과제 카드 디자인 (높이 고정 및 레이아웃) */
+    /* 카드 스타일 */
     .challenge-card-inner {
         background-color: #1e2328;
         border: 2px solid #3c3c44;
@@ -28,80 +31,57 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
         text-align: center;
-        height: 320px; /* 카드 전체 높이 고정 */
+        height: 320px; 
         justify-content: flex-start;
         position: relative;
+        transition: all 0.2s ease;
     }
     
-    /* 아이콘 영역 */
-    .card-icon-area {
-        width: 70px; 
-        height: 70px; 
-        margin-bottom: 10px;
-        flex-shrink: 0;
+    /* [수정됨] 랜덤 추첨 카드 스타일 (크기 확대 및 중앙 정렬) */
+    .spinning-card-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 30px; /* 하단 검색창과의 간격 */
+        height: 400px; /* 애니메이션 영역 고정 높이 */
     }
 
-    /* 제목 영역 (높이 강제 고정: 2줄) */
+    .spinning-card {
+        border-color: #c8aa6e !important;
+        box-shadow: 0 0 25px rgba(200, 170, 110, 0.5); /* 그림자 강화 */
+        width: 350px !important; /* 너비 확대 */
+        height: 380px !important; /* 높이 확대 */
+        transform: scale(1.05); /* 약간 더 커보이게 */
+        z-index: 10; /* 다른 요소 위로 */
+    }
+    
+    .card-icon-area { width: 70px; height: 70px; margin-bottom: 10px; flex-shrink: 0; }
+    /* 스피닝 카드 내부 아이콘 크기 확대 */
+    .spinning-card .card-icon-area { width: 100px; height: 100px; }
+
     .card-title {
-        color: #f0e6d2; 
-        font-weight: bold; 
-        font-size: 1.1em; 
-        line-height: 1.3;
-        margin: 5px 0;
-        height: 45px;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
+        color: #f0e6d2; font-weight: bold; font-size: 1.1em; line-height: 1.3;
+        margin: 5px 0; height: 45px; overflow: hidden;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
+    /* 스피닝 카드 내부 제목 폰트 확대 */
+    .spinning-card .card-title { font-size: 1.4em; height: auto; -webkit-line-clamp: 3; }
 
-    /* 설명 영역 (높이 강제 고정: 3줄) */
     .card-desc {
-        color: #a09b8c; 
-        font-size: 0.8em; 
-        line-height: 1.4;
-        margin-bottom: 10px;
-        height: 55px;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
+        color: #a09b8c; font-size: 0.8em; line-height: 1.4; margin-bottom: 10px;
+        height: 55px; overflow: hidden;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     }
 
-    /* 하단 푸터 (점수/등급) - 항상 바닥에 붙도록 설정 */
-    .card-footer {
-        margin-top: auto; 
-        width: 100%;
-    }
+    .card-footer { margin-top: auto; width: 100%; }
 
-    /* 상세 모달 스타일 */
-    .modal-stat-box {
-        background-color: #1a1c21;
-        padding: 15px;
-        border-radius: 10px;
-        margin-top: 10px;
-        border: 1px solid #333;
-    }
+    /* 모달 및 기타 */
+    .modal-stat-box { background-color: #1a1c21; padding: 15px; border-radius: 10px; margin-top: 10px; border: 1px solid #333; }
     
-    /* 버튼 스타일 */
-    div.stButton > button {
-        width: 100%; /* 버튼 자체 CSS도 100%로 설정 */
-        background-color: #1e2328;
-        color: #c8aa6e;
-        border: 1px solid #c8aa6e;
-    }
-    div.stButton > button:hover {
-        background-color: #c8aa6e;
-        color: #010a13;
-        border-color: #f0e6d2;
-    }
+    div.stButton > button { width: 100%; background-color: #1e2328; color: #c8aa6e; border: 1px solid #c8aa6e; }
+    div.stButton > button:hover { background-color: #c8aa6e; color: #010a13; border-color: #f0e6d2; }
     
-    /* 검색창 스타일 커스텀 */
-    div[data-testid="stTextInput"] input {
-        background-color: #1e2328;
-        color: #f0e6d2;
-        border: 1px solid #3c3c44;
-    }
+    div[data-testid="stTextInput"] input { background-color: #1e2328; color: #f0e6d2; border: 1px solid #3c3c44; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -243,11 +223,14 @@ def show_detail_modal(challenge_data, config_data):
     else:
         range_val = next_th - prev_th
         current_progress = current_val - prev_th
+        
         if range_val <= 0: range_val = 1 
         ratio = min(max(current_progress / range_val, 0.0), 1.0) 
         
         st.markdown(f"#### 다음 단계: <span style='color:{get_tier_color(next_tier)}'>{next_tier}</span>", unsafe_allow_html=True)
         
+        msg = f"목표까지 {next_th - current_val:,.0f} 남음"
+
         st.markdown(f"""
         <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#aaa; margin-bottom:5px;">
             <span>{current_val:,.0f}</span>
@@ -257,7 +240,7 @@ def show_detail_modal(challenge_data, config_data):
             <div style="width:{ratio*100}%; background:linear-gradient(90deg, {color}, {get_tier_color(next_tier)}); height:100%;"></div>
         </div>
         <div style="text-align:right; font-size:0.8em; color:#aaa; margin-top:5px;">
-            목표까지 {next_th - current_val:,.0f} 남음
+            {msg}
         </div>
         """, unsafe_allow_html=True)
 
@@ -314,22 +297,67 @@ if st.session_state.get('data') and st.session_state.get('config'):
 
     st.markdown("---")
 
-    # [신규 기능] 검색 및 필터링
-    col_search, _ = st.columns([2, 2])
+    # 데이터 미리 준비
+    challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
+    real_challenges = [c for c in challenges if c['challengeId'] > 10]
+
+    # [핵심 수정] 애니메이션이 표시될 공간을 메인 영역 상단에 미리 확보
+    spin_placeholder = st.empty()
+
+    # 검색창 + 랜덤 추천 버튼
+    col_search, col_rand = st.columns([3, 1], vertical_alignment="bottom")
     with col_search:
         search_input = st.text_input("🔍 도전과제 검색 (이름, 내용)", placeholder="예: 무작위 총력전, 펜타킬...", value=st.session_state.search_query)
 
-    # 검색어가 바뀌면 페이지를 1페이지로 리셋
+    with col_rand:
+        # 버튼 클릭 시 상단 spin_placeholder 영역에 애니메이션 표시
+        if st.button("🎲 오늘의 도전과제", use_container_width=True, type="primary"):
+            if real_challenges:
+                # 슬롯머신 효과 (빠르게 카드 교체)
+                for i in range(15):
+                    temp_pick = random.choice(real_challenges)
+                    c_id_temp = str(temp_pick['challengeId'])
+                    config_temp = conf.get(c_id_temp, {})
+                    
+                    names_temp = config_temp.get('localizedNames', {})
+                    ko_temp = names_temp.get('ko_KR') or names_temp.get('en_US') or {}
+                    c_name_temp = ko_temp.get('name', "Unknown")
+                    level_temp = temp_pick.get('level', 'NONE')
+                    color_temp = get_tier_color(level_temp)
+                    icon_url_temp = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id_temp}/tokens/{level_temp.lower()}.png"
+
+                    # [핵심 수정] 중앙 정렬 및 크기 확대된 임시 카드 HTML
+                    temp_html = f"""
+                    <div class="spinning-card-container">
+                        <div class="challenge-card-inner spinning-card" style="border-bottom: 4px solid {color_temp}; opacity:0.9;">
+                            <div style="color:#c8aa6e; font-weight:bold; font-size:1.2em; margin-bottom:15px;">🎲 추첨 중...</div>
+                            <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
+                                <img src="{icon_url_temp}" style="width:100%; height:100%; object-fit:contain;">
+                            </div>
+                            <div class="card-title">{c_name_temp}</div>
+                            <div style="color:{color_temp}; font-weight:bold; font-size:1.2em; margin-top:10px;">{level_temp}</div>
+                        </div>
+                    </div>
+                    """
+                    spin_placeholder.markdown(textwrap.dedent(temp_html), unsafe_allow_html=True)
+                    time.sleep(0.05 + i * 0.01)
+
+                # 애니메이션 공간 비우기
+                spin_placeholder.empty()
+
+                # 최종 결과 모달 표시
+                random_pick = random.choice(real_challenges)
+                pick_config = conf.get(str(random_pick['challengeId']), {})
+                show_detail_modal(random_pick, pick_config)
+            else:
+                st.toast("추천할 도전과제가 없습니다.")
+
+    # 검색 로직
     if search_input != st.session_state.search_query:
         st.session_state.search_query = search_input
         st.session_state.page_num = 1
         st.rerun()
 
-    # 데이터 준비
-    challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
-    real_challenges = [c for c in challenges if c['challengeId'] > 10]
-
-    # [필터링 로직]
     filtered_challenges = []
     if search_input.strip():
         query = search_input.lower().strip()
@@ -342,22 +370,18 @@ if st.session_state.get('data') and st.session_state.get('config'):
             c_name = ko.get('name', '').lower()
             c_desc = ko.get('description', '').lower()
             
-            # 이름이나 설명에 검색어가 포함되어 있으면 추가
             if query in c_name or query in c_desc:
                 filtered_challenges.append(c)
     else:
         filtered_challenges = real_challenges
 
-    # 결과가 없을 경우 처리
     if not filtered_challenges:
         st.warning(f"'{search_input}'에 대한 검색 결과가 없습니다.")
     else:
-        # 데이터 처리 및 페이지네이션
         ITEMS_PER_PAGE = 20
         total_items = len(filtered_challenges)
         total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
         
-        # 페이지 범위 보정
         if st.session_state.page_num > total_pages:
             st.session_state.page_num = 1
         
@@ -375,7 +399,6 @@ if st.session_state.get('data') and st.session_state.get('config'):
         with col_info:
             st.markdown(f"<div style='text-align:center; padding-top:10px;'>Page {st.session_state.page_num} / {total_pages} (검색: {total_items}개)</div>", unsafe_allow_html=True)
 
-        # Grid Display
         start_idx = (st.session_state.page_num - 1) * ITEMS_PER_PAGE
         end_idx = start_idx + ITEMS_PER_PAGE
         current_page_data = filtered_challenges[start_idx:end_idx]
@@ -398,21 +421,21 @@ if st.session_state.get('data') and st.session_state.get('config'):
             icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
 
             with cols[i % 4]:
-                st.markdown(f"""
-<div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">
-    <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
-          <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
-    </div>
-    <div class="card-title">{c_name}</div>
-    <div class="card-desc">{c_desc}</div>
-    <div class="card-footer">
-        <div style="color:{color}; font-weight:bold; font-size:1.1em;">{points:,.0f} Pts</div>
-        <div style="color:{color}; font-size:0.9em;">{level}</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+                card_html = f"""
+                <div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">
+                    <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
+                        <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
+                    </div>
+                    <div class="card-title">{c_name}</div>
+                    <div class="card-desc">{c_desc}</div>
+                    <div class="card-footer">
+                        <div style="color:{color}; font-weight:bold; font-size:1.1em;">{points:,.0f} Pts</div>
+                        <div style="color:{color}; font-size:0.9em;">{level}</div>
+                    </div>
+                </div>
+                """
+                st.markdown(textwrap.dedent(card_html), unsafe_allow_html=True)
                 
-                # [수정] use_container_width=True 옵션 추가 (가로 꽉 차게)
                 if st.button("상세 정보", key=f"btn_{c_id}", use_container_width=True):
                     show_detail_modal(challenge, config_item)
 
