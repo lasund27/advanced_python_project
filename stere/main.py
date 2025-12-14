@@ -4,58 +4,113 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote
 import re
 
-# ---------------------------------------------------------------
-# 기본 설정
-# ---------------------------------------------------------------
+# -------------------------------------------------
+# Page Config
+# -------------------------------------------------
 st.set_page_config(
     page_title="OP.GG 소환사 분석",
     page_icon="🎮",
     layout="wide"
 )
-st.title("🎮 OP.GG 소환사 분석")
 
-# ---------------------------------------------------------------
-# 소환사 입력
-# ---------------------------------------------------------------
-user_input = st.text_input("소환사 이름 (닉네임#태그)")
+# -------------------------------------------------
+# CSS
+# -------------------------------------------------
+st.markdown("""
+<style>
+.stApp { background-color:#010a13; color:#c8aa6e; }
 
-if not user_input or "#" not in user_input:
-    st.info("예: Hide on bush#KR1")
-    st.stop()
+.block-container {
+    padding-top:5rem !important;
+    padding-bottom:5rem;
+    max-width:1400px;
+}
 
-name, tag = user_input.split("#", 1)
-encoded = f"{quote(name)}-{quote(tag)}"
+[data-testid="stSidebar"] {
+    background-color:#091428;
+    border-right:1px solid #1e282d;
+}
+[data-testid="stSidebar"] * { color:#cdbe91 !important; }
 
-BASE = "https://op.gg/ko/lol/summoners/kr"
-URL_CHAMP = f"{BASE}/{encoded}/champions"
-URL_MASTERY = f"{BASE}/{encoded}/mastery"
+.grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(220px,1fr));
+    gap:15px;
+    margin-top:20px;
+}
+
+.card {
+    background:#1e2328;
+    border:2px solid #3c3c44;
+    border-radius:6px;
+    padding:15px;
+    text-align:center;
+    transition:.2s;
+
+    min-height:230px;              /* ✅ 세로 높이 통일 */
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+}
+
+.card:hover {
+    transform:translateY(-5px);
+    border-color:#f0e6d2;
+}
+
+.title { font-weight:bold; color:#f0e6d2; margin-top:10px; }
+.sub { font-size:.85em; color:#a09b8c; }
+
+.bar-bg {
+    width:100%;
+    height:18px;
+    background:#0a0a0c;
+    border-radius:9px;
+    overflow:hidden;
+    margin-top:8px;
+}
+.bar-win {
+    height:100%;
+    border-radius:9px;
+    background:linear-gradient(90deg,#0ac8b9,#0a96a0);
+}
+
+button {
+    background:#1e2328 !important;
+    color:#c8aa6e !important;
+    border:1px solid #c8aa6e !important;
+}
+button:hover {
+    background:#c8aa6e !important;
+    color:#010a13 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------
+# Sidebar
+# -------------------------------------------------
+with st.sidebar:
+    st.title("OP.GG 분석기")
+    riot_id = st.text_input("소환사명#태그", value="Hide on bush#KR1")
+    search = st.button("검색", use_container_width=True)
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ---------------------------------------------------------------
-# HTML 요청
-# ---------------------------------------------------------------
 def fetch(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-        return r.text
-    except:
-        return None
+    r = requests.get(url, headers=HEADERS)
+    return r.text if r.status_code == 200 else None
 
-# ---------------------------------------------------------------
-# 모스트픽 파싱 (상대전적 제거)
-# ---------------------------------------------------------------
-def parse_champions(html):
+# -------------------------------------------------
+# Parse Functions
+# -------------------------------------------------
+def parse_most_champions(html):
     soup = BeautifulSoup(html, "html.parser")
-    champs = []
-
     rows = soup.select("tbody tr")
+    result = []
 
     for r in rows:
         text = r.get_text(" ", strip=True).lower()
-
-        # ❌ 상대전적(vs ○○) 제거
         if "vs" in text:
             continue
 
@@ -63,119 +118,109 @@ def parse_champions(html):
         if not img:
             continue
 
-        wins = re.search(r"(\d+)\s*승", text)
-        losses = re.search(r"(\d+)\s*패", text)
-
-        if not wins or not losses:
+        w = re.search(r"(\d+)\s*승", text)
+        l = re.search(r"(\d+)\s*패", text)
+        if not w or not l:
             continue
 
-        champs.append({
-            "img": img.get("src"),
-            "name": img.get("alt", "Unknown"),
-            "wins": int(wins.group(1)),
-            "losses": int(losses.group(1))
+        wins, losses = int(w.group(1)), int(l.group(1))
+        if wins + losses == 0:
+            continue
+
+        result.append({
+            "name": img["alt"],
+            "img": img["src"],
+            "wins": wins,
+            "losses": losses
         })
 
-        if len(champs) == 5:
+        if len(result) == 5:
             break
 
-    return champs
+    return result
 
-# ---------------------------------------------------------------
-# 숙련도 파싱
-# ---------------------------------------------------------------
 def parse_mastery(html):
     soup = BeautifulSoup(html, "html.parser")
-    rows = soup.select("div[data-tooltip-id='opgg-tooltip']")[:5]
+    rows = soup.select("div[data-tooltip-id='opgg-tooltip']")[:6]
     result = []
 
     for r in rows:
         img = r.find("img")
         score = r.find("span", class_="mx-auto")
-        level = r.find("span", class_="text-2xs")
-
         if not img:
             continue
 
         result.append({
-            "img": img.get("src"),
-            "name": img.get("alt", "Unknown"),
-            "score": score.text if score else "-",
-            "level": level.text if level else "-"
+            "name": img["alt"],
+            "img": img["src"],
+            "score": score.text.strip() if score else "-"
         })
 
     return result
 
-# ---------------------------------------------------------------
-# 데이터 로드
-# ---------------------------------------------------------------
-html_champ = fetch(URL_CHAMP)
-html_mastery = fetch(URL_MASTERY)
+# -------------------------------------------------
+# Main
+# -------------------------------------------------
+if search and "#" in riot_id:
+    name, tag = riot_id.split("#")
+    encoded = f"{quote(name)}-{quote(tag)}"
 
-if not html_champ or not html_mastery:
-    st.error("OP.GG 데이터를 불러오지 못했습니다.")
-    st.stop()
+    champ_html = fetch(f"https://op.gg/ko/lol/summoners/kr/{encoded}/champions")
+    mastery_html = fetch(f"https://op.gg/ko/lol/summoners/kr/{encoded}/mastery")
 
-left, divider, right = st.columns([3, 0.15, 3])
+    if not champ_html:
+        st.error("데이터를 불러오지 못했습니다.")
+        st.stop()
 
-# =========================
-# 🎯 모스트 픽
-# =========================
-with left:
-    st.subheader("🎯 모스트픽 Top 5")
+    champs = parse_most_champions(champ_html)
+    mastery = parse_mastery(mastery_html)
 
-    st.markdown("""
-    <style>
-    .bar-wrap {width:100%; height:18px; background:#ddd; border-radius:6px; display:flex;}
-    .win {background:#4da6ff;}
-    .loss {background:#ff4d4d;}
-    </style>
-    """, unsafe_allow_html=True)
+    col_left, col_right = st.columns([1, 1])
 
-    for c in parse_champions(html_champ):
-        total = c["wins"] + c["losses"]
-        win_p = c["wins"] / total * 100 if total else 0
-        loss_p = 100 - win_p
+    # ---------------- Most Pick ----------------
+    with col_left:
+        st.markdown("## 🎯 모스트 픽")
+        st.markdown("<div class='grid'>", unsafe_allow_html=True)
 
-        img_col, graph_col = st.columns([1, 3])
+        for c in champs:
+            total = c["wins"] + c["losses"]
+            winrate = int(c["wins"] / total * 100)
 
-        with img_col:
-            st.image(c["img"], width=60)
+            st.markdown(f"""
+            <div class="card">
+                <div>
+                    <img src="{c['img']}" width="80">
+                    <div class="title">{c['name']}</div>
+                    <div class="sub">{c['wins']}승 {c['losses']}패</div>
+                </div>
+                <div>
+                    <div class="bar-bg">
+                        <div class="bar-win" style="width:{winrate}%"></div>
+                    </div>
+                    <div class="sub">{winrate}% 승률</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        with graph_col:
-            st.write(f"**{c['name']}**")
-            st.markdown(
-                f"<div>{c['wins']}승 <span style='float:right'>{c['losses']}패</span></div>"
-                f"<div class='bar-wrap'>"
-                f"<div class='win' style='width:{win_p}%'></div>"
-                f"<div class='loss' style='width:{loss_p}%'></div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("---")
+    # ---------------- Mastery ----------------
+    with col_right:
+        st.markdown("## 🏅 숙련도")
+        st.markdown("<div class='grid'>", unsafe_allow_html=True)
 
-# =========================
-# 경계선
-# =========================
-with divider:
-    st.markdown(
-        "<div style='height:100%; border-left:3px solid #777;'></div>",
-        unsafe_allow_html=True
-    )
+        for m in mastery:
+            st.markdown(f"""
+            <div class="card">
+                <div>
+                    <img src="{m['img']}" width="80">
+                    <div class="title">{m['name']}</div>
+                </div>
+                <div class="sub">{m['score']} pts</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-# =========================
-# 🏅 숙련도
-# =========================
-with right:
-    st.subheader("🏅 숙련도 Top 5")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    for m in parse_mastery(html_mastery):
-        c1, c2 = st.columns([1, 3])
-        with c1:
-            st.image(m["img"], width=60)
-        with c2:
-            st.write(f"**{m['name']}**")
-            st.write(f"점수: {m['score']}")
-            st.write(f"레벨: {m['level']}")
-        st.markdown("---")
+else:
+    st.info("👈 사이드바에서 소환사명을 입력하세요.")
