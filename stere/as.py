@@ -2,112 +2,90 @@ import streamlit as st
 import requests
 import urllib.parse
 import plotly.graph_objects as go
-import math  # [추가됨] 페이지 계산용
+import math
 
 # --- 페이지 설정 ---
 st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", layout="wide")
 
-# --- 커스텀 CSS (디자인 수정) ---
+# --- 커스텀 CSS (디자인 수정: 카드 높이 고정 및 정렬) ---
 st.markdown("""
 <style>
     /* 1. 전체 다크 테마 적용 */
-    .stApp {
-        background-color: #010a13;
-        color: #c8aa6e;
-    }
+    .stApp { background-color: #010a13; color: #c8aa6e; }
+    .block-container { padding-top: 2rem !important; max-width: 1200px; }
     
-    /* 2. 상단 여백 확보 */
-    .block-container {
-        padding-top: 5rem !important; 
-        padding-bottom: 5rem;
-        max-width: 1400px;
-    }
+    /* 2. 사이드바 스타일 */
+    [data-testid="stSidebar"] { background-color: #091428; border-right: 1px solid #1e282d; }
+    [data-testid="stSidebar"] * { color: #cdbe91 !important; }
 
-    /* 3. 사이드바 스타일 */
-    [data-testid="stSidebar"] {
-        background-color: #091428;
-        border-right: 1px solid #1e282d;
-    }
-    [data-testid="stSidebar"] * {
-        color: #cdbe91 !important;
-    }
-
-    /* 4. 도전과제 카드 디자인 */
-    .challenge-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 15px;
-        margin-top: 20px;
-    }
-    
-    .challenge-card {
+    /* 3. 도전과제 카드 디자인 (높이 고정 및 레이아웃) */
+    .challenge-card-inner {
         background-color: #1e2328;
         border: 2px solid #3c3c44;
         border-radius: 6px;
-        padding: 15px;
+        padding: 15px 10px;
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
-        transition: transform 0.2s, border-color 0.2s;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        height: 320px; /* 카드 전체 높이 고정 */
+        justify-content: flex-start;
+        position: relative;
     }
     
-    .challenge-card:hover {
-        transform: translateY(-5px);
-        border-color: #f0e6d2;
-        box-shadow: 0 5px 15px rgba(200, 170, 110, 0.2);
+    /* 아이콘 영역 */
+    .card-icon-area {
+        width: 70px; 
+        height: 70px; 
+        margin-bottom: 10px;
+        flex-shrink: 0;
     }
 
-    /* 텍스트 스타일 */
+    /* 제목 영역 (높이 강제 고정: 2줄) */
     .card-title {
-        color: #f0e6d2;
-        font-weight: bold;
-        margin: 10px 0 5px 0;
-        font-size: 1.1em;
-        line-height: 1.2;
-    }
-    .card-desc {
-        color: #a09b8c;
-        font-size: 0.8em;
-        margin-bottom: 10px;
-        min-height: 32px;
+        color: #f0e6d2; 
+        font-weight: bold; 
+        font-size: 1.1em; 
+        line-height: 1.3;
+        margin: 5px 0;
+        height: 45px;
+        overflow: hidden;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-    .card-footer {
-        margin-top: auto;
-        font-size: 0.9em;
-        font-weight: bold;
-        text-transform: uppercase;
     }
 
-    /* 진행바 */
-    .p-bar-bg {
-        width: 100%;
-        background-color: #0a0a0c;
-        height: 20px;
-        border-radius: 10px;
+    /* 설명 영역 (높이 강제 고정: 3줄) */
+    .card-desc {
+        color: #a09b8c; 
+        font-size: 0.8em; 
+        line-height: 1.4;
+        margin-bottom: 10px;
+        height: 55px;
         overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+    }
+
+    /* 하단 푸터 (점수/등급) - 항상 바닥에 붙도록 설정 */
+    .card-footer {
+        margin-top: auto; 
+        width: 100%;
+    }
+
+    /* 상세 모달 스타일 */
+    .modal-stat-box {
+        background-color: #1a1c21;
+        padding: 15px;
+        border-radius: 10px;
         margin-top: 10px;
-        border: 1px solid #444;
-        position: relative;
-    }
-    .p-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #0ac8b9, #0a96a0);
-    }
-    .p-bar-text {
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 12px; color: white; text-shadow: 1px 1px 2px black;
+        border: 1px solid #333;
     }
     
-    /* 버튼 스타일 커스텀 */
+    /* 버튼 스타일 */
     div.stButton > button {
+        width: 100%;
         background-color: #1e2328;
         color: #c8aa6e;
         border: 1px solid #c8aa6e;
@@ -118,8 +96,12 @@ st.markdown("""
         border-color: #f0e6d2;
     }
     
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* 검색창 스타일 커스텀 */
+    div[data-testid="stTextInput"] input {
+        background-color: #1e2328;
+        color: #f0e6d2;
+        border: 1px solid #3c3c44;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -127,7 +109,7 @@ st.markdown("""
 if "API_KEY" in st.secrets:
     API_KEY = st.secrets["API_KEY"]
 else:
-    API_KEY = "" # 여기에 API 키 입력
+    API_KEY = "" # ⚠️ 여기에 본인의 라이엇 API 키를 입력하세요!
 
 if not API_KEY:
     st.warning("⚠️ 코드 내 `API_KEY` 변수에 라이엇 API 키를 입력해주세요.")
@@ -149,6 +131,34 @@ def get_tier_color(tier):
         'MASTER': '#d153f5', 'GRANDMASTER': '#f03a3a', 'CHALLENGER': '#4baeff'
     }
     return colors.get(tier, '#3c3c44')
+
+def calculate_next_level(challenge_info, config_info):
+    current_val = challenge_info.get('value', 0)
+    current_level = challenge_info.get('level', 'NONE')
+    thresholds = config_info.get('thresholds', {})
+    
+    order = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER']
+    
+    next_tier = "MAX"
+    next_threshold = current_val
+    prev_threshold = 0
+    
+    try:
+        curr_idx = order.index(current_level)
+        if curr_idx < len(order) - 1:
+            next_tier = order[curr_idx + 1]
+            next_threshold = thresholds.get(next_tier, current_val)
+            prev_threshold = thresholds.get(current_level, 0)
+        else:
+            next_tier = "MAX"
+            next_threshold = current_val
+            prev_threshold = thresholds.get('GRANDMASTER', 0)
+    except ValueError:
+        next_tier = 'IRON'
+        next_threshold = thresholds.get('IRON', 0)
+        prev_threshold = 0
+
+    return next_tier, prev_threshold, next_threshold
 
 # --- API Functions ---
 @st.cache_data(ttl=3600)
@@ -178,43 +188,9 @@ def get_all_challenge_config():
         return None
     except: return None
 
-# --- UI 생성 함수 ---
-def make_html_card(challenge, config):
-    c_id = str(challenge.get('challengeId'))
-    points = challenge.get('value', 0)
-    level = challenge.get('level', 'NONE')
-    
-    c_name = f"Unknown ({c_id})"
-    c_desc = ""
-    if config:
-        names = config.get('localizedNames', {})
-        ko = names.get('ko_KR') or names.get('en_US') or {}
-        c_name = ko.get('name', c_name)
-        c_desc = ko.get('description', '')
-    
-    if not c_desc: c_desc = "상세 설명 없음"
-    c_desc = c_desc.replace("<br>", " ")
-
-    color = get_tier_color(level)
-    icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
-
-    html = f"""
-    <div class="challenge-card" style="border-bottom: 4px solid {color};">
-        <div style="color:{color}; font-weight:bold; font-size:0.9em; margin-bottom:10px;">{points:,.0f} Pts</div>
-        <div style="width:80px; height:80px; border-radius:50%; overflow:hidden; margin-bottom:10px; background:#121212; display:flex; justify-content:center; align-items:center;">
-             <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
-        </div>
-        <div class="card-title">{c_name}</div>
-        <div class="card-desc" title="{c_desc}">{c_desc}</div>
-        <div class="card-footer" style="color:{color};">{level}</div>
-    </div>
-    """
-    return html
-
 def make_donut(val, max_val, tier):
     per = (val/max_val*100) if max_val>0 else 0
     color = get_tier_color(tier)
-    
     fig = go.Figure(data=[go.Pie(
         labels=['A','B'], values=[per, 100-per], hole=0.75,
         marker=dict(colors=[color, 'rgba(255,255,255,0.1)']),
@@ -230,13 +206,68 @@ def make_donut(val, max_val, tier):
     )
     return fig
 
+# --- 상세 정보 팝업 (모달) ---
+@st.dialog("도전과제 상세 정보")
+def show_detail_modal(challenge_data, config_data):
+    c_id = str(challenge_data.get('challengeId'))
+    current_val = challenge_data.get('value', 0)
+    level = challenge_data.get('level', 'NONE')
+    percentile = challenge_data.get('percentile', 0) * 100 
+
+    names = config_data.get('localizedNames', {})
+    ko = names.get('ko_KR') or names.get('en_US') or {}
+    c_name = ko.get('name', f"Unknown ({c_id})")
+    c_desc = ko.get('description', '설명 없음').replace("<br>", " ")
+    
+    color = get_tier_color(level)
+    icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
+
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.image(icon_url, width=100)
+    with col2:
+        st.markdown(f"<h3 style='margin:0; color:#f0e6d2'>{c_name}</h3>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{color}; font-weight:bold; font-size:1.2em'>{level}</span>", unsafe_allow_html=True)
+        if percentile > 0:
+            st.caption(f"👥 플레이어 중 상위 {percentile:.1f}%가 획득")
+    
+    st.divider()
+    st.info(c_desc)
+
+    next_tier, prev_th, next_th = calculate_next_level(challenge_data, config_data)
+    
+    if next_tier == "MAX":
+        st.balloons()
+        st.success("🏆 모든 단계를 완료했습니다!")
+        st.metric(label="현재 점수", value=f"{current_val:,.0f} Pts")
+    else:
+        range_val = next_th - prev_th
+        current_progress = current_val - prev_th
+        if range_val <= 0: range_val = 1 
+        ratio = min(max(current_progress / range_val, 0.0), 1.0) 
+        
+        st.markdown(f"#### 다음 단계: <span style='color:{get_tier_color(next_tier)}'>{next_tier}</span>", unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#aaa; margin-bottom:5px;">
+            <span>{current_val:,.0f}</span>
+            <span>{next_th:,.0f}</span>
+        </div>
+        <div style="width:100%; background:#333; height:10px; border-radius:5px; overflow:hidden;">
+            <div style="width:{ratio*100}%; background:linear-gradient(90deg, {color}, {get_tier_color(next_tier)}); height:100%;"></div>
+        </div>
+        <div style="text-align:right; font-size:0.8em; color:#aaa; margin-top:5px;">
+            목표까지 {next_th - current_val:,.0f} 남음
+        </div>
+        """, unsafe_allow_html=True)
+
 # --- Main Logic ---
 if 'config' not in st.session_state:
     st.session_state.config = get_all_challenge_config()
-
-# [추가됨] 페이지 상태 초기화
 if 'page_num' not in st.session_state:
     st.session_state.page_num = 1
+if 'search_query' not in st.session_state:
+    st.session_state.search_query = ""
 
 with st.sidebar:
     st.image("https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/crest-icon-2.png", width=50)
@@ -250,7 +281,7 @@ with st.sidebar:
                 pid = get_puuid(n, t)
                 if pid:
                     st.session_state.data = get_player_data(pid)
-                    st.session_state.page_num = 1 # 검색 시 페이지 초기화
+                    st.session_state.page_num = 1
                 else:
                     st.error("사용자 없음")
 
@@ -263,7 +294,7 @@ if st.session_state.get('data') and st.session_state.get('config'):
     maxx = total.get('max', 20000)
     tier = total.get('level', 'IRON')
 
-    # 헤더 섹션
+    # 상단 전체 진행도
     c1, c2 = st.columns([1, 4])
     with c1:
         st.plotly_chart(make_donut(cur, maxx, tier), use_container_width=True, config={'displayModeBar':False})
@@ -272,63 +303,120 @@ if st.session_state.get('data') and st.session_state.get('config'):
         st.markdown(f"""
         <div style="padding: 20px;">
             <h1 style="margin:0; color:#f0e6d2; font-size:2.5em;">전체 진행도</h1>
-            <p style="color:#a09b8c;">모든 도전과제의 합산 점수입니다.</p>
-            <div class="p-bar-bg">
-                <div class="p-bar-fill" style="width: {per}%;"></div>
-                <div class="p-bar-text">{cur:,} / {maxx:,}</div>
+            <div style="background-color:#0a0a0c; height:20px; border-radius:10px; border:1px solid #444; margin-top:10px; position:relative; overflow:hidden;">
+                <div style="width:{per}%; background:linear-gradient(90deg, #0ac8b9, #0a96a0); height:100%;"></div>
+                <div style="position:absolute; top:0; width:100%; text-align:center; font-size:12px; line-height:20px; color:white; text-shadow:1px 1px 2px black;">
+                    {cur:,} / {maxx:,}
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    # 데이터 처리 및 페이지네이션
+
+    # [신규 기능] 검색 및 필터링
+    col_search, _ = st.columns([2, 2])
+    with col_search:
+        search_input = st.text_input("🔍 도전과제 검색 (이름, 내용)", placeholder="예: 무작위 총력전, 펜타킬...", value=st.session_state.search_query)
+
+    # 검색어가 바뀌면 페이지를 1페이지로 리셋
+    if search_input != st.session_state.search_query:
+        st.session_state.search_query = search_input
+        st.session_state.page_num = 1
+        st.rerun()
+
+    # 데이터 준비
     challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
     real_challenges = [c for c in challenges if c['challengeId'] > 10]
-    
-    # 페이지 설정
-    ITEMS_PER_PAGE = 24
-    total_items = len(real_challenges)
-    total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
-    
-    # 페이지네이션 컨트롤 바
-    col_prev, col_info, col_next = st.columns([1, 2, 1])
-    
-    with col_prev:
-        if st.button("◀ 이전 페이지", use_container_width=True):
-            if st.session_state.page_num > 1:
-                st.session_state.page_num -= 1
-                st.rerun()
 
-    with col_next:
-        if st.button("다음 페이지 ▶", use_container_width=True):
-            if st.session_state.page_num < total_pages:
-                st.session_state.page_num += 1
-                st.rerun()
-                
-    with col_info:
-        st.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold;'>Page {st.session_state.page_num} / {total_pages}</div>", unsafe_allow_html=True)
+    # [필터링 로직]
+    filtered_challenges = []
+    if search_input.strip():
+        query = search_input.lower().strip()
+        for c in real_challenges:
+            c_id = str(c['challengeId'])
+            config_item = conf.get(c_id, {})
+            
+            names = config_item.get('localizedNames', {})
+            ko = names.get('ko_KR') or names.get('en_US') or {}
+            c_name = ko.get('name', '').lower()
+            c_desc = ko.get('description', '').lower()
+            
+            # 이름이나 설명에 검색어가 포함되어 있으면 추가
+            if query in c_name or query in c_desc:
+                filtered_challenges.append(c)
+    else:
+        filtered_challenges = real_challenges
 
-    # 슬라이싱 (현재 페이지에 맞는 데이터만 추출)
-    start_idx = (st.session_state.page_num - 1) * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_page_data = real_challenges[start_idx:end_idx]
-    
-    # 카드 생성
-    card_htmls = []
-    for c in current_page_data:
-        card_htmls.append(make_html_card(c, conf.get(str(c['challengeId']))))
-    
-    final_html = f"""
-    <div class="challenge-grid">
-        {''.join(card_htmls)}
+    # 결과가 없을 경우 처리
+    if not filtered_challenges:
+        st.warning(f"'{search_input}'에 대한 검색 결과가 없습니다.")
+    else:
+        # 데이터 처리 및 페이지네이션 (필터링된 목록 사용)
+        ITEMS_PER_PAGE = 20
+        total_items = len(filtered_challenges)
+        total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
+        
+        # 페이지 범위 보정 (검색 후 페이지 수가 줄어들었을 때)
+        if st.session_state.page_num > total_pages:
+            st.session_state.page_num = 1
+        
+        col_prev, col_info, col_next = st.columns([1, 2, 1])
+        with col_prev:
+            if st.button("◀ 이전", use_container_width=True, key="prev_btn"):
+                if st.session_state.page_num > 1:
+                    st.session_state.page_num -= 1
+                    st.rerun()
+        with col_next:
+            if st.button("다음 ▶", use_container_width=True, key="next_btn"):
+                if st.session_state.page_num < total_pages:
+                    st.session_state.page_num += 1
+                    st.rerun()
+        with col_info:
+            st.markdown(f"<div style='text-align:center; padding-top:10px;'>Page {st.session_state.page_num} / {total_pages} (검색: {total_items}개)</div>", unsafe_allow_html=True)
+
+        # Grid Display
+        start_idx = (st.session_state.page_num - 1) * ITEMS_PER_PAGE
+        end_idx = start_idx + ITEMS_PER_PAGE
+        current_page_data = filtered_challenges[start_idx:end_idx]
+
+        cols = st.columns(4)
+        
+        for i, challenge in enumerate(current_page_data):
+            c_id = str(challenge.get('challengeId'))
+            config_item = conf.get(c_id, {})
+            
+            points = challenge.get('value', 0)
+            level = challenge.get('level', 'NONE')
+            
+            names = config_item.get('localizedNames', {})
+            ko = names.get('ko_KR') or names.get('en_US') or {}
+            c_name = ko.get('name', f"Unknown")
+            c_desc = ko.get('description', '설명 없음')
+            
+            color = get_tier_color(level)
+            icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
+
+            with cols[i % 4]:
+                # HTML 들여쓰기 제거된 버전
+                st.markdown(f"""
+<div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">
+    <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
+          <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
     </div>
-    """
-    
-    st.markdown(final_html, unsafe_allow_html=True)
-    
-    # 하단 여백 추가
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    <div class="card-title">{c_name}</div>
+    <div class="card-desc">{c_desc}</div>
+    <div class="card-footer">
+        <div style="color:{color}; font-weight:bold; font-size:1.1em;">{points:,.0f} Pts</div>
+        <div style="color:{color}; font-size:0.9em;">{level}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+                
+                if st.button("상세 정보", key=f"btn_{c_id}"):
+                    show_detail_modal(challenge, config_item)
+
+        st.markdown("<br><br>", unsafe_allow_html=True)
 
 else:
     if not st.session_state.get('data'):
