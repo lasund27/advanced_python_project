@@ -1,114 +1,125 @@
 import streamlit as st
 import requests
 import urllib.parse
-import math
+import plotly.graph_objects as go
+import math  # [추가됨] 페이지 계산용
 
 # --- 페이지 설정 ---
 st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", layout="wide")
 
-# --- 커스텀 CSS (깔끔한 LoL 스타일 적용) ---
+# --- 커스텀 CSS (디자인 수정) ---
 st.markdown("""
 <style>
-    /* 1. 기본 테마 설정 */
-    .stApp { background-color: #010a13; color: #c8aa6e; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
-    .block-container { max-width: 1200px; padding-top: 2rem; }
-    [data-testid="stSidebar"] { background-color: #091428; border-right: 1px solid #1e282d; }
+    /* 1. 전체 다크 테마 적용 */
+    .stApp {
+        background-color: #010a13;
+        color: #c8aa6e;
+    }
     
-    /* 2. 카드 컨테이너 */
-    .challenge-card-container {
-        margin-bottom: 15px;
-        border-radius: 4px;
-        overflow: hidden;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    /* 2. 상단 여백 확보 */
+    .block-container {
+        padding-top: 5rem !important; 
+        padding-bottom: 5rem;
+        max-width: 1400px;
     }
 
-    /* 3. 카드 헤더 (요약 정보 - 클릭 가능한 부분) */
-    .card-header {
-        background-color: #1e2328;
-        border: 1px solid #3c3c44;
-        padding: 12px 15px;
-        display: flex;
-        align-items: center;
+    /* 3. 사이드바 스타일 */
+    [data-testid="stSidebar"] {
+        background-color: #091428;
+        border-right: 1px solid #1e282d;
+    }
+    [data-testid="stSidebar"] * {
+        color: #cdbe91 !important;
+    }
+
+    /* 4. 도전과제 카드 디자인 */
+    .challenge-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 15px;
-        transition: all 0.2s ease;
-    }
-    .card-header:hover {
-        background-color: #252a33;
-        border-color: #c8aa6e;
-        cursor: pointer;
+        margin-top: 20px;
     }
     
-    /* 4. 카드 바디 (상세 정보 - 펼쳐지는 부분) */
-    .card-body {
-        background-color: #121418;
-        border: 1px solid #3c3c44;
-        border-top: none;
+    .challenge-card {
+        background-color: #1e2328;
+        border: 2px solid #3c3c44;
+        border-radius: 6px;
         padding: 15px;
-        animation: slideDown 0.3s ease-out;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: transform 0.2s, border-color 0.2s;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     }
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
+    
+    .challenge-card:hover {
+        transform: translateY(-5px);
+        border-color: #f0e6d2;
+        box-shadow: 0 5px 15px rgba(200, 170, 110, 0.2);
     }
 
-    /* 5. 롤 클라이언트 스타일 진행바 (핵심 디자인) */
-    .lol-progress-frame {
+    /* 텍스트 스타일 */
+    .card-title {
+        color: #f0e6d2;
+        font-weight: bold;
+        margin: 10px 0 5px 0;
+        font-size: 1.1em;
+        line-height: 1.2;
+    }
+    .card-desc {
+        color: #a09b8c;
+        font-size: 0.8em;
+        margin-bottom: 10px;
+        min-height: 32px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .card-footer {
+        margin-top: auto;
+        font-size: 0.9em;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    /* 진행바 */
+    .p-bar-bg {
         width: 100%;
-        height: 24px;
-        background-color: #050505; /* 아주 어두운 배경 */
-        border: 1px solid #333;
-        position: relative; /* 텍스트를 위에 띄우기 위함 */
-        margin: 15px 0;
-        border-radius: 2px;
+        background-color: #0a0a0c;
+        height: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 10px;
+        border: 1px solid #444;
+        position: relative;
     }
-    
-    .lol-progress-bar {
+    .p-bar-fill {
         height: 100%;
-        /* 청록색 그라데이션 (스크린샷 참조) */
-        background: linear-gradient(90deg, #005a82 0%, #0ac8b9 100%);
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-        transition: width 0.5s ease-in-out;
+        background: linear-gradient(90deg, #0ac8b9, #0a96a0);
     }
-    
-    .lol-progress-text {
+    .p-bar-text {
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
         display: flex; align-items: center; justify-content: center;
-        color: #ffffff;
-        font-weight: bold;
-        font-size: 13px;
-        text-shadow: 1px 1px 2px #000;
-        letter-spacing: 0.5px;
-        z-index: 10; /* 바보다 위에 표시 */
-    }
-
-    /* 6. 텍스트 및 기타 스타일 */
-    .challenge-name { color: #f0e6d2; font-weight: 700; font-size: 1.1em; margin-bottom: 4px; }
-    .tier-text { font-size: 0.85em; font-weight: 600; letter-spacing: 0.5px; }
-    .points-text { font-size: 0.85em; color: #888; margin-top: 4px; }
-    .desc-text { color: #a09b8c; font-size: 0.9em; line-height: 1.4; }
-    .info-text { font-size: 0.8em; color: #666; }
-    .friend-text { color: #888; font-size: 0.85em; display: flex; align-items: center; gap: 8px; }
-
-    /* Streamlit 버튼 스타일 커스텀 (카드와 한 몸처럼 보이게) */
-    div.stButton > button {
-        width: 100%;
-        background-color: #1e2328;
-        color: #c8aa6e;
-        border: 1px solid #3c3c44;
-        border-top: none; /* 헤더와 연결된 느낌 */
-        border-radius: 0 0 4px 4px;
-        padding: 8px;
-        font-size: 0.9em;
-        transition: all 0.2s;
-    }
-    div.stButton > button:hover {
-        background-color: #252a33;
-        border-color: #c8aa6e;
-        color: #f0e6d2;
+        font-size: 12px; color: white; text-shadow: 1px 1px 2px black;
     }
     
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;}
+    /* 버튼 스타일 커스텀 */
+    div.stButton > button {
+        background-color: #1e2328;
+        color: #c8aa6e;
+        border: 1px solid #c8aa6e;
+    }
+    div.stButton > button:hover {
+        background-color: #c8aa6e;
+        color: #010a13;
+        border-color: #f0e6d2;
+    }
+    
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,8 +127,7 @@ st.markdown("""
 if "API_KEY" in st.secrets:
     API_KEY = st.secrets["API_KEY"]
 else:
-    # API 키를 여기에 직접 입력하거나, secrets.toml 파일을 활용하세요.
-    API_KEY = "" 
+    API_KEY = "" # 여기에 API 키 입력
 
 if not API_KEY:
     st.warning("⚠️ 코드 내 `API_KEY` 변수에 라이엇 API 키를 입력해주세요.")
@@ -168,184 +178,158 @@ def get_all_challenge_config():
         return None
     except: return None
 
-# --- HTML Components ---
-def render_card_header(challenge, config):
-    """닫혀있을 때 보이는 카드 헤더 (4번째 사진 상단 스타일)"""
-    level = challenge.get('level', 'NONE')
+# --- UI 생성 함수 ---
+def make_html_card(challenge, config):
     c_id = str(challenge.get('challengeId'))
     points = challenge.get('value', 0)
+    level = challenge.get('level', 'NONE')
     
-    c_name = "Unknown"
-    
+    c_name = f"Unknown ({c_id})"
+    c_desc = ""
     if config:
         names = config.get('localizedNames', {})
         ko = names.get('ko_KR') or names.get('en_US') or {}
         c_name = ko.get('name', c_name)
-
-    icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
-    color = get_tier_color(level)
+        c_desc = ko.get('description', '')
     
+    if not c_desc: c_desc = "상세 설명 없음"
+    c_desc = c_desc.replace("<br>", " ")
+
+    color = get_tier_color(level)
+    icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
+
     html = f"""
-    <div class="card-header" style="border-left: 4px solid {color};">
-        <div style="width:48px; height:48px; border-radius:50%; background:#121212; display:flex; justify-content:center; align-items:center; flex-shrink:0; border: 2px solid {color};">
+    <div class="challenge-card" style="border-bottom: 4px solid {color};">
+        <div style="color:{color}; font-weight:bold; font-size:0.9em; margin-bottom:10px;">{points:,.0f} Pts</div>
+        <div style="width:80px; height:80px; border-radius:50%; overflow:hidden; margin-bottom:10px; background:#121212; display:flex; justify-content:center; align-items:center;">
              <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
         </div>
-        <div style="flex-grow:1;">
-            <div class="challenge-name">{c_name}</div>
-            <div class="tier-text" style="color:{color};">{level}</div>
-        </div>
-        <div style="text-align:right;">
-            <div style="font-weight:bold; font-size:1.1em; color:#f0e6d2;">{points:,.0f}</div>
-            <div class="points-text">Pts</div>
-        </div>
+        <div class="card-title">{c_name}</div>
+        <div class="card-desc" title="{c_desc}">{c_desc}</div>
+        <div class="card-footer" style="color:{color};">{level}</div>
     </div>
     """
     return html
 
-def render_card_body(challenge, config):
-    """열렸을 때 보이는 상세 내용 (4번째 사진 하단 스타일) - 버그 수정됨"""
-    curr_val = challenge.get('value', 0)
+def make_donut(val, max_val, tier):
+    per = (val/max_val*100) if max_val>0 else 0
+    color = get_tier_color(tier)
     
-    # 다음 목표값 계산
-    next_threshold = 0
-    desc = "설명 없음"
-    
-    if config:
-        names = config.get('localizedNames', {})
-        ko = names.get('ko_KR') or names.get('en_US') or {}
-        desc = ko.get('description', desc).replace("<br>", " ")
-        
-        thresholds = config.get('thresholds', {})
-        sorted_thresholds = sorted(thresholds.items(), key=lambda x: x[1])
-        
-        for t_name, t_val in sorted_thresholds:
-            if t_val > curr_val:
-                next_threshold = t_val
-                break
-        # 만렙(챌린저 등)이라 다음 목표가 없는 경우, 마지막 임계값을 목표로 설정
-        if next_threshold == 0 and sorted_thresholds:
-            next_threshold = sorted_thresholds[-1][1]
-
-    # 퍼센트 계산 (0으로 나누기 방지)
-    pct = (curr_val / next_threshold * 100) if next_threshold > 0 else 100
-    pct = min(pct, 100) # 100%를 넘지 않도록
-    
-    # 실제 렌더링될 HTML 문자열을 생성합니다.
-    html = f"""
-    <div class="card-body">
-        <div class="desc-text" style="margin-bottom:15px;">{desc}</div>
-        
-        <div class="lol-progress-frame">
-            <div class="lol-progress-bar" style="width: {pct}%;"></div>
-            <div class="lol-progress-text">{curr_val:,.0f} / {next_threshold:,.0f}</div>
-        </div>
-        
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-            <div class="info-text">🏆 상위 {10.5}%가 획득 (예시 데이터)</div>
-            <div class="info-text">2024 시즌</div>
-        </div>
-        
-        <div style="border-top:1px solid #333; padding-top:10px;">
-            <div class="friend-text">
-                <span style="font-size:1.3em;">👥</span>
-                <span>친구 3명이 이 레벨에 있습니다. (예시)</span>
-            </div>
-        </div>
-    </div>
-    """
-    return html
+    fig = go.Figure(data=[go.Pie(
+        labels=['A','B'], values=[per, 100-per], hole=0.75,
+        marker=dict(colors=[color, 'rgba(255,255,255,0.1)']),
+        textinfo='none', hoverinfo='none', sort=False
+    )])
+    fig.update_layout(
+        annotations=[
+            dict(text=f"{val:,}", x=0.5, y=0.55, font_size=24, font_color="#fff", showarrow=False, font_weight="bold"),
+            dict(text=tier, x=0.5, y=0.35, font_size=14, font_color=color, showarrow=False)
+        ],
+        margin=dict(l=0,r=0,t=0,b=0), height=160,
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False
+    )
+    return fig
 
 # --- Main Logic ---
 if 'config' not in st.session_state:
     st.session_state.config = get_all_challenge_config()
 
-# 어떤 카드가 열려있는지 저장하는 State
-if 'expanded_ids' not in st.session_state:
-    st.session_state.expanded_ids = set()
+# [추가됨] 페이지 상태 초기화
+if 'page_num' not in st.session_state:
+    st.session_state.page_num = 1
 
 with st.sidebar:
+    st.image("https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/crest-icon-2.png", width=50)
     st.title("LoL Challenges")
+    
     riot_id = st.text_input("Riot ID (이름#태그)", value="hide on bush#KR1")
     if st.button("검색", type="primary", use_container_width=True):
         if "#" in riot_id:
             n, t = riot_id.split('#')
-            with st.spinner("정보를 불러오는 중..."):
+            with st.spinner("불러오는 중..."):
                 pid = get_puuid(n, t)
                 if pid:
                     st.session_state.data = get_player_data(pid)
-                    st.session_state.expanded_ids = set() # 검색 시 열림 상태 초기화
-                    if 'page' in st.session_state: st.session_state.page = 1 # 페이지 초기화
+                    st.session_state.page_num = 1 # 검색 시 페이지 초기화
                 else:
-                    st.error("사용자를 찾을 수 없습니다.")
-        else:
-            st.warning("정확한 Riot ID 형식(이름#태그)으로 입력해주세요.")
+                    st.error("사용자 없음")
 
 if st.session_state.get('data') and st.session_state.get('config'):
     data = st.session_state.data
     conf = st.session_state.config
     
+    total = data.get('totalPoints', {})
+    cur = total.get('current', 0)
+    maxx = total.get('max', 20000)
+    tier = total.get('level', 'IRON')
+
+    # 헤더 섹션
+    c1, c2 = st.columns([1, 4])
+    with c1:
+        st.plotly_chart(make_donut(cur, maxx, tier), use_container_width=True, config={'displayModeBar':False})
+    with c2:
+        per = min((cur/maxx*100), 100)
+        st.markdown(f"""
+        <div style="padding: 20px;">
+            <h1 style="margin:0; color:#f0e6d2; font-size:2.5em;">전체 진행도</h1>
+            <p style="color:#a09b8c;">모든 도전과제의 합산 점수입니다.</p>
+            <div class="p-bar-bg">
+                <div class="p-bar-fill" style="width: {per}%;"></div>
+                <div class="p-bar-text">{cur:,} / {maxx:,}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    
+    # 데이터 처리 및 페이지네이션
     challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
-    # 실제 의미 있는 도전과제만 필터링 (ID > 10)
     real_challenges = [c for c in challenges if c['challengeId'] > 10]
     
-    # --- 페이지네이션 ---
-    ITEMS_PER_PAGE = 20
-    if 'page' not in st.session_state: st.session_state.page = 1
-    total_len = len(real_challenges)
-    total_pages = math.ceil(total_len / ITEMS_PER_PAGE)
+    # 페이지 설정
+    ITEMS_PER_PAGE = 24
+    total_items = len(real_challenges)
+    total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
     
-    start_idx = (st.session_state.page - 1) * ITEMS_PER_PAGE
-    end_idx = start_idx + ITEMS_PER_PAGE
-    current_items = real_challenges[start_idx:end_idx]
-
-    st.subheader(f"도전과제 목록 ({total_len}개)")
-    st.caption(f"페이지 {st.session_state.page} / {total_pages} (총 {total_len}개 중 {start_idx+1}-{min(end_idx, total_len)} 표시)")
-
-    # --- 2열 그리드 출력 ---
-    cols = st.columns(2)
+    # 페이지네이션 컨트롤 바
+    col_prev, col_info, col_next = st.columns([1, 2, 1])
     
-    for idx, item in enumerate(current_items):
-        c_id = item['challengeId']
-        c_id_str = str(c_id)
-        config_item = conf.get(c_id_str)
-        is_expanded = c_id in st.session_state.expanded_ids
-        
-        col_idx = idx % 2
-        with cols[col_idx]:
-            # 카드 컨테이너 시작
-            st.markdown('<div class="challenge-card-container">', unsafe_allow_html=True)
-            
-            # 1. 헤더 HTML (항상 보임)
-            st.markdown(render_card_header(item, config_item), unsafe_allow_html=True)
-            
-            # 2. 상세 내용 HTML (열렸을 때만 보임)
-            if is_expanded:
-                st.markdown(render_card_body(item, config_item), unsafe_allow_html=True)
-            
-            # 3. 토글 버튼 (헤더 아래에 붙어서 토글 기능 수행)
-            btn_text = "🔼 접기" if is_expanded else "🔽 상세 정보 보기"
-            if st.button(btn_text, key=f"btn_{c_id}"):
-                if is_expanded:
-                    st.session_state.expanded_ids.remove(c_id)
-                else:
-                    st.session_state.expanded_ids.add(c_id)
+    with col_prev:
+        if st.button("◀ 이전 페이지", use_container_width=True):
+            if st.session_state.page_num > 1:
+                st.session_state.page_num -= 1
+                st.rerun()
+
+    with col_next:
+        if st.button("다음 페이지 ▶", use_container_width=True):
+            if st.session_state.page_num < total_pages:
+                st.session_state.page_num += 1
                 st.rerun()
                 
-            # 카드 컨테이너 끝
-            st.markdown('</div>', unsafe_allow_html=True)
+    with col_info:
+        st.markdown(f"<div style='text-align:center; padding-top:10px; font-weight:bold;'>Page {st.session_state.page_num} / {total_pages}</div>", unsafe_allow_html=True)
 
-    # --- 하단 페이지네이션 컨트롤 ---
-    st.markdown("---")
-    c1, c2, c3 = st.columns([1, 2, 1])
-    if c1.button("◀ 이전 페이지", use_container_width=True):
-        if st.session_state.page > 1:
-            st.session_state.page -= 1
-            st.rerun()
-    if c3.button("다음 페이지 ▶", use_container_width=True):
-        if st.session_state.page < total_pages:
-            st.session_state.page += 1
-            st.rerun()
-    c2.markdown(f"<div style='text-align:center; padding-top: 10px; font-weight:bold;'>{st.session_state.page} / {total_pages}</div>", unsafe_allow_html=True)
+    # 슬라이싱 (현재 페이지에 맞는 데이터만 추출)
+    start_idx = (st.session_state.page_num - 1) * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+    current_page_data = real_challenges[start_idx:end_idx]
+    
+    # 카드 생성
+    card_htmls = []
+    for c in current_page_data:
+        card_htmls.append(make_html_card(c, conf.get(str(c['challengeId']))))
+    
+    final_html = f"""
+    <div class="challenge-grid">
+        {''.join(card_htmls)}
+    </div>
+    """
+    
+    st.markdown(final_html, unsafe_allow_html=True)
+    
+    # 하단 여백 추가
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
 else:
-    st.info("👈 사이드바에서 Riot ID를 입력하고 검색해주세요.")
+    if not st.session_state.get('data'):
+        st.info("👈 사이드바에서 아이디를 입력하고 검색하세요.")
