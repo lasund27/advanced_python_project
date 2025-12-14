@@ -21,7 +21,7 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #091428; border-right: 1px solid #1e282d; }
     [data-testid="stSidebar"] * { color: #cdbe91 !important; }
 
-    /* 카드 스타일 */
+    /* 기본 카드 스타일 */
     .challenge-card-inner {
         background-color: #1e2328;
         border: 2px solid #3c3c44;
@@ -37,26 +37,41 @@ st.markdown("""
         transition: all 0.2s ease;
     }
     
-    /* [수정됨] 랜덤 추첨 카드 스타일 (크기 확대 및 중앙 정렬) */
+    /* [신규] 승급 임박 카드 강조 스타일 */
+    .imminent-card {
+        border: 2px solid #d13639 !important; /* 붉은색 강조 테두리 */
+        background-color: #2a1e1e !important;
+        box-shadow: 0 0 10px rgba(209, 54, 57, 0.2);
+    }
+    .imminent-badge {
+        background-color: #d13639;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    /* 랜덤 추첨 카드 스타일 */
     .spinning-card-container {
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 30px; /* 하단 검색창과의 간격 */
-        height: 400px; /* 애니메이션 영역 고정 높이 */
+        margin-bottom: 30px; 
+        height: 400px; 
     }
 
     .spinning-card {
         border-color: #c8aa6e !important;
-        box-shadow: 0 0 25px rgba(200, 170, 110, 0.5); /* 그림자 강화 */
-        width: 350px !important; /* 너비 확대 */
-        height: 380px !important; /* 높이 확대 */
-        transform: scale(1.05); /* 약간 더 커보이게 */
-        z-index: 10; /* 다른 요소 위로 */
+        box-shadow: 0 0 25px rgba(200, 170, 110, 0.5); 
+        width: 350px !important; 
+        height: 380px !important; 
+        transform: scale(1.05); 
+        z-index: 10; 
     }
     
     .card-icon-area { width: 70px; height: 70px; margin-bottom: 10px; flex-shrink: 0; }
-    /* 스피닝 카드 내부 아이콘 크기 확대 */
     .spinning-card .card-icon-area { width: 100px; height: 100px; }
 
     .card-title {
@@ -64,7 +79,6 @@ st.markdown("""
         margin: 5px 0; height: 45px; overflow: hidden;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    /* 스피닝 카드 내부 제목 폰트 확대 */
     .spinning-card .card-title { font-size: 1.4em; height: auto; -webkit-line-clamp: 3; }
 
     .card-desc {
@@ -223,12 +237,10 @@ def show_detail_modal(challenge_data, config_data):
     else:
         range_val = next_th - prev_th
         current_progress = current_val - prev_th
-        
         if range_val <= 0: range_val = 1 
         ratio = min(max(current_progress / range_val, 0.0), 1.0) 
         
         st.markdown(f"#### 다음 단계: <span style='color:{get_tier_color(next_tier)}'>{next_tier}</span>", unsafe_allow_html=True)
-        
         msg = f"목표까지 {next_th - current_val:,.0f} 남음"
 
         st.markdown(f"""
@@ -267,6 +279,10 @@ with st.sidebar:
                     st.session_state.page_num = 1
                 else:
                     st.error("사용자 없음")
+    
+    st.markdown("---")
+    # [신규] 사이드바 체크박스 (기능 제어)
+    show_imminent = st.checkbox("🔥 승급 임박 추천 보기", value=False)
 
 if st.session_state.get('data') and st.session_state.get('config'):
     data = st.session_state.data
@@ -297,11 +313,73 @@ if st.session_state.get('data') and st.session_state.get('config'):
 
     st.markdown("---")
 
-    # 데이터 미리 준비
+    # 데이터 준비
     challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
     real_challenges = [c for c in challenges if c['challengeId'] > 10]
 
-    # [핵심 수정] 애니메이션이 표시될 공간을 메인 영역 상단에 미리 확보
+    # [신규 기능] 🔥 승급 임박 TOP 5 표시 (체크박스가 켜져있을 때만)
+    if show_imminent:
+        imminent_list = []
+        for c in real_challenges:
+            c_id = str(c['challengeId'])
+            cfg = conf.get(c_id, {})
+            next_tier, _, next_th = calculate_next_level(c, cfg)
+            
+            # MAX 레벨이 아니고, 아직 점수가 모자란 경우만
+            if next_tier != "MAX" and c['value'] < next_th:
+                diff = next_th - c['value']
+                imminent_list.append({
+                    'diff': diff,
+                    'data': c,
+                    'config': cfg,
+                    'next_tier': next_tier
+                })
+        
+        imminent_list.sort(key=lambda x: x['diff'])
+        top_imminent = imminent_list[:5]
+
+        if top_imminent:
+            st.markdown("### 🔥 승급까지 한 걸음! (승급 임박 TOP 5)")
+            st.caption("다음 레벨까지 남은 점수가 가장 적은 도전과제들입니다. 한 판만 더 하면 승급할지도?")
+            
+            i_cols = st.columns(5)
+            for idx, item in enumerate(top_imminent):
+                c_data = item['data']
+                c_conf = item['config']
+                diff = item['diff']
+                next_tier = item['next_tier']
+                
+                names = c_conf.get('localizedNames', {})
+                ko = names.get('ko_KR') or names.get('en_US') or {}
+                c_name = ko.get('name', 'Unknown')
+                c_desc = ko.get('description', '')[:30] + "..." if len(ko.get('description', '')) > 30 else ko.get('description', '')
+                
+                curr_level = c_data.get('level', 'NONE')
+                color = get_tier_color(curr_level)
+                icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_data.get('challengeId')}/tokens/{curr_level.lower()}.png"
+
+                with i_cols[idx]:
+                    card_html = f"""
+                    <div class="challenge-card-inner imminent-card" style="height: 280px; margin-bottom: 10px;">
+                        <div class="imminent-badge">D-{diff:,.0f}점</div>
+                        <div class="card-icon-area" style="width:50px; height:50px; background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
+                            <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
+                        </div>
+                        <div class="card-title" style="font-size:1em; height:40px;">{c_name}</div>
+                        <div class="card-desc" style="font-size:0.75em; height:40px;">{c_desc}</div>
+                        <div class="card-footer">
+                            <div style="font-size:0.8em; color:#aaa;">Next: <span style="color:{get_tier_color(next_tier)}">{next_tier}</span></div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(textwrap.dedent(card_html), unsafe_allow_html=True)
+                    
+                    if st.button("상세", key=f"btn_imm_{c_data.get('challengeId')}", use_container_width=True):
+                        show_detail_modal(c_data, c_conf)
+            
+            st.divider()
+
+    # 애니메이션 공간
     spin_placeholder = st.empty()
 
     # 검색창 + 랜덤 추천 버튼
@@ -310,10 +388,8 @@ if st.session_state.get('data') and st.session_state.get('config'):
         search_input = st.text_input("🔍 도전과제 검색 (이름, 내용)", placeholder="예: 무작위 총력전, 펜타킬...", value=st.session_state.search_query)
 
     with col_rand:
-        # 버튼 클릭 시 상단 spin_placeholder 영역에 애니메이션 표시
         if st.button("🎲 오늘의 도전과제", use_container_width=True, type="primary"):
             if real_challenges:
-                # 슬롯머신 효과 (빠르게 카드 교체)
                 for i in range(15):
                     temp_pick = random.choice(real_challenges)
                     c_id_temp = str(temp_pick['challengeId'])
@@ -326,7 +402,6 @@ if st.session_state.get('data') and st.session_state.get('config'):
                     color_temp = get_tier_color(level_temp)
                     icon_url_temp = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id_temp}/tokens/{level_temp.lower()}.png"
 
-                    # [핵심 수정] 중앙 정렬 및 크기 확대된 임시 카드 HTML
                     temp_html = f"""
                     <div class="spinning-card-container">
                         <div class="challenge-card-inner spinning-card" style="border-bottom: 4px solid {color_temp}; opacity:0.9;">
@@ -342,10 +417,8 @@ if st.session_state.get('data') and st.session_state.get('config'):
                     spin_placeholder.markdown(textwrap.dedent(temp_html), unsafe_allow_html=True)
                     time.sleep(0.05 + i * 0.01)
 
-                # 애니메이션 공간 비우기
                 spin_placeholder.empty()
 
-                # 최종 결과 모달 표시
                 random_pick = random.choice(real_challenges)
                 pick_config = conf.get(str(random_pick['challengeId']), {})
                 show_detail_modal(random_pick, pick_config)
