@@ -7,7 +7,7 @@ import math
 # --- 페이지 설정 ---
 st.set_page_config(page_title="롤 도전과제 검색기", page_icon="🏆", layout="wide")
 
-# --- 커스텀 CSS (디자인 수정: 카드 높이 고정 및 정렬) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
     /* 1. 전체 다크 테마 적용 */
@@ -85,7 +85,7 @@ st.markdown("""
     
     /* 버튼 스타일 */
     div.stButton > button {
-        width: 100%;
+        width: 100%; /* 버튼 자체 CSS도 100%로 설정 */
         background-color: #1e2328;
         color: #c8aa6e;
         border: 1px solid #c8aa6e;
@@ -352,12 +352,12 @@ if st.session_state.get('data') and st.session_state.get('config'):
     if not filtered_challenges:
         st.warning(f"'{search_input}'에 대한 검색 결과가 없습니다.")
     else:
-        # 데이터 처리 및 페이지네이션 (필터링된 목록 사용)
+        # 데이터 처리 및 페이지네이션
         ITEMS_PER_PAGE = 20
         total_items = len(filtered_challenges)
         total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
         
-        # 페이지 범위 보정 (검색 후 페이지 수가 줄어들었을 때)
+        # 페이지 범위 보정
         if st.session_state.page_num > total_pages:
             st.session_state.page_num = 1
         
@@ -398,7 +398,6 @@ if st.session_state.get('data') and st.session_state.get('config'):
             icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
 
             with cols[i % 4]:
-                # HTML 들여쓰기 제거된 버전
                 st.markdown(f"""
 <div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">
     <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
@@ -413,7 +412,8 @@ if st.session_state.get('data') and st.session_state.get('config'):
 </div>
 """, unsafe_allow_html=True)
                 
-                if st.button("상세 정보", key=f"btn_{c_id}"):
+                # [수정] use_container_width=True 옵션 추가 (가로 꽉 차게)
+                if st.button("상세 정보", key=f"btn_{c_id}", use_container_width=True):
                     show_detail_modal(challenge, config_item)
 
         st.markdown("<br><br>", unsafe_allow_html=True)
