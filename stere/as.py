@@ -288,9 +288,7 @@ if 'search_query' not in st.session_state:
     st.session_state.search_query = ""
 
 with st.sidebar:
-    st.image("https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/crest-icon-2.png", width=50)
     st.title("LoL Challenges")
-    
     riot_id = st.text_input("Riot ID (이름#태그)", value="hide on bush#KR1")
     if st.button("검색", type="primary", use_container_width=True):
         if "#" in riot_id:
