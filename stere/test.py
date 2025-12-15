@@ -46,6 +46,11 @@ if 'search_query' not in st.session_state:
 # -------------------------------------------------
 st.markdown("""
 <style>
+/* 상단 헤더(Deploy 라인) 배경색 변경 */
+header[data-testid="stHeader"] {
+    background-color: #010a13 !important;
+}
+
 /* 기본 테마 */
 .stApp { background-color: #010a13; color: #c8aa6e; }
 .block-container { max-width: 1400px; padding-top: 2rem; }
@@ -98,6 +103,25 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
 
 .landing-title { font-size: 60px; font-weight: 800; text-align: center; color: #00bba3; margin-bottom: 10px; }
 .landing-subtitle { font-size: 18px; text-align: center; color: #a09b8c; margin-bottom: 30px; }
+
+/* 프로그레스 바 스타일 (그라데이션) */
+.progress-container {
+    width: 100%;
+    background-color: #1a1a1a; /* 어두운 배경 */
+    border-radius: 10px;
+    height: 12px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    border: 1px solid #333;
+}
+.progress-bar-gradient {
+    height: 100%;
+    border-radius: 10px;
+    /* 빨강 -> 보라 -> 파랑 그라데이션 */
+    background: linear-gradient(90deg, #ff4b4b, #a020f0, #0099ff);
+    transition: width 0.5s ease-in-out;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,9 +129,6 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
 # 5. Sidebar
 # -------------------------------------------------
 with st.sidebar:
-    # [수정] 사이드바 상단 이미지 제거
-    # st.image("https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/rewards-modal/crest-icon-2.png", width=60)
-    
     if st.session_state.riot_id:
         if st.button("🏠 홈으로 (검색 초기화)", use_container_width=True):
             st.session_state.riot_id = ""
@@ -200,8 +221,26 @@ def get_player_data_api(name, tag):
 def make_donut(val, max_val, tier):
     per = (val/max_val*100) if max_val>0 else 0
     color = get_tier_color(tier)
-    fig = go.Figure(data=[go.Pie(labels=['A','B'], values=[per, 100-per], hole=0.75, marker=dict(colors=[color, 'rgba(255,255,255,0.1)']), textinfo='none', hoverinfo='none', sort=False)])
-    fig.update_layout(annotations=[dict(text=f"{val:,}", x=0.5, y=0.55, font_size=24, font_color="#fff", showarrow=False, font_weight="bold"), dict(text=tier, x=0.5, y=0.35, font_size=14, font_color=color, showarrow=False)], margin=dict(l=0,r=0,t=0,b=0), height=160, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+    fig = go.Figure(data=[go.Pie(
+        labels=['A','B'], 
+        values=[per, 100-per], 
+        hole=0.75, 
+        marker=dict(colors=[color, 'rgba(255,255,255,0.1)']), 
+        textinfo='none', 
+        hoverinfo='none', 
+        sort=False
+    )])
+    fig.update_layout(
+        annotations=[
+            dict(text=f"{val:,}", x=0.5, y=0.55, font_size=20, font_color="#fff", showarrow=False, font_weight="bold"), 
+            dict(text=tier, x=0.5, y=0.35, font_size=12, font_color=color, showarrow=False)
+        ], 
+        margin=dict(l=0,r=0,t=0,b=0), 
+        height=140, 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        plot_bgcolor='rgba(0,0,0,0)', 
+        showlegend=False
+    )
     return fig
 
 def calculate_next_level(challenge_info, config_info):
@@ -209,18 +248,27 @@ def calculate_next_level(challenge_info, config_info):
     current_level = challenge_info.get('level', 'NONE')
     thresholds = config_info.get('thresholds', {})
     order = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER']
+    
+    prev_threshold = 0
+    next_tier = "MAX"
+    next_threshold = current_val
+
     try:
         curr_idx = order.index(current_level)
         if curr_idx < len(order) - 1:
             next_tier = order[curr_idx + 1]
             next_threshold = thresholds.get(next_tier, current_val)
+            prev_threshold = thresholds.get(current_level, 0)
         else:
             next_tier = "MAX"
             next_threshold = current_val
+            prev_threshold = thresholds.get('GRANDMASTER', 0)
     except ValueError:
         next_tier = 'IRON'
         next_threshold = thresholds.get('IRON', 0)
-    return next_tier, next_threshold
+        prev_threshold = 0
+
+    return next_tier, prev_threshold, next_threshold
 
 @st.dialog("도전과제 상세 정보")
 def show_detail_modal(c, cfg):
@@ -228,19 +276,62 @@ def show_detail_modal(c, cfg):
     color = get_tier_color(level)
     icon = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c['challengeId']}/tokens/{level.lower()}.png"
     
-    c1, c2 = st.columns([1, 3])
-    with c1: st.image(icon, width=100)
+    # 1. 헤더
+    c1, c2 = st.columns([1, 4], vertical_alignment="center")
+    with c1: 
+        st.image(icon, width=80)
     with c2:
-        st.markdown(f"### {c.get('name_txt', 'Unknown')}")
-        st.markdown(f"**{level}** | {c.get('value', 0):,} Pts")
+        st.markdown(f"<h3 style='margin:0; padding:0; color:#000000;'>{c.get('name_txt', 'Unknown')}</h3>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{color}; font-weight:bold; font-size:1.2em;'>{level}</span>", unsafe_allow_html=True)
+        if c.get('percentile', 0) > 0:
+             st.markdown(f"<span style='font-size:0.8em; color:#888; margin-left:10px;'>👥 상위 {c.get('percentile', 0)*100:.1f}%</span>", unsafe_allow_html=True)
     
-    st.info(c.get('desc_txt', '설명 없음'))
+    st.markdown("<hr style='margin: 10px 0; border-color: #333;'>", unsafe_allow_html=True)
     
-    next_tier, next_th = calculate_next_level(c, cfg)
+    # 설명 박스 (가시성 개선: 흰색 글씨)
+    st.markdown(f"""
+    <div style="background-color: #323842; padding: 15px; border-radius: 6px; color: #ffffff; font-size: 0.95em; margin-bottom: 20px; box-shadow: inset 0 0 5px rgba(0,0,0,0.2);">
+        {c.get('desc_txt', '설명 없음')}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 3. 진행도 바 섹션
+    next_tier, prev_th, next_th = calculate_next_level(c, cfg)
+    
     if next_tier != "MAX":
-        st.markdown(f"**Next: {next_tier}** 까지 {next_th - c.get('value', 0):,} 점 남음")
+        # 진행도 계산
+        range_val = next_th - prev_th
+        current_progress = c.get('value', 0) - prev_th
+        if range_val <= 0: range_val = 1 
+        ratio = min(max(current_progress / range_val, 0.0), 1.0) 
+
+        # 다음 단계 텍스트
+        st.markdown(f"<div style='font-size:0.9em; margin-bottom:5px;'>다음 단계: <span style='color:#0099ff; font-weight:bold;'>{next_tier}</span></div>", unsafe_allow_html=True)
+        
+        # 점수 표시
+        st.markdown(f"""
+        <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#aaa; margin-bottom:2px;">
+            <span>{c.get('value', 0):,}</span>
+            <span>{next_th:,}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 그라데이션 바
+        st.markdown(f"""
+        <div class="progress-container">
+            <div class="progress-bar-gradient" style="width:{ratio*100}%;"></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 남은 점수
+        st.markdown(f"""
+        <div style="text-align:right; font-size:0.8em; color:#aaa; margin-top:5px;">
+            목표까지 {next_th - c.get('value', 0):,} 남음
+        </div>
+        """, unsafe_allow_html=True)
     else:
         st.success("최고 등급 달성!")
+        st.metric(label="최종 점수", value=f"{c.get('value', 0):,} Pts")
 
 # -------------------------------------------------
 # 7. Main Logic
@@ -265,7 +356,7 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
     else:
         name, tag = st.session_state.riot_id.split("#")
         
-        st.markdown(f"## 📊 {name} <span style='color:#888;'>#{tag}</span>", unsafe_allow_html=True)
+        st.markdown(f"## {name} <span style='color:#888;'>#{tag}</span>", unsafe_allow_html=True)
         st.divider()
 
         c_html, m_html = fetch_opgg_data(name, tag)
@@ -332,17 +423,30 @@ elif st.session_state.current_view == "도전과제 (API)":
             data, conf = get_player_data_api(name, tag)
             
         if data and conf:
-            # 1. 상단 정보
+            # 상단 여백
+            st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
+
+            # 1. 상단 정보 (원형 그래프 + 가로형 바)
             total = data.get('totalPoints', {})
             cur, maxx = total.get('current', 0), total.get('max', 1)
+            per = min((cur/maxx*100), 100)
             
-            c1, c2 = st.columns([1, 3])
-            with c1: st.plotly_chart(make_donut(cur, maxx, total.get('level', 'IRON')), use_container_width=True, config={'displayModeBar':False})
+            # 원형 차트(좌)와 정보(우) 배치
+            c1, c2 = st.columns([1, 4])
+            with c1:
+                st.plotly_chart(make_donut(cur, maxx, total.get('level', 'IRON')), use_container_width=True, config={'displayModeBar':False})
             with c2:
-                # [수정] 여기서도 이미지 없이 텍스트만 표시
-                st.markdown(f"### {st.session_state.riot_id}")
-                st.progress(min(cur/maxx, 1.0))
-                st.caption(f"점수: {cur:,} / {maxx:,}")
+                st.markdown(f"""
+                <div style="padding: 20px 0;">
+                    <h1 style="margin:0; color:#c8aa6e; font-size:2em; margin-bottom: 10px;">{st.session_state.riot_id}</h1>
+                    <div style="background-color:#1e2328; height:10px; border-radius:5px; position:relative; overflow:hidden;">
+                        <div style="width:{per}%; background-color:#0099ff; height:100%; box-shadow: 0 0 10px #0099ff;"></div>
+                    </div>
+                    <div style="margin-top: 8px; color: #888; font-size: 0.9em;">
+                        점수: {cur:,} / {maxx:,}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.divider()
 
@@ -357,9 +461,7 @@ elif st.session_state.current_view == "도전과제 (API)":
                 c['desc_txt'] = loc.get('description', '')
                 enriched_challenges.append(c)
 
-            # 3. 컨트롤 패널 (유지)
-            
-            # Row 1: 검색 | 정렬 | 랜덤 버튼
+            # 3. 컨트롤 패널
             col_search, col_sort, col_rand = st.columns([2, 1, 1], vertical_alignment="bottom")
             with col_search:
                 search_input = st.text_input("🔍 이름 검색", placeholder="도전과제명...", value=st.session_state.search_query, label_visibility="collapsed")
@@ -368,13 +470,12 @@ elif st.session_state.current_view == "도전과제 (API)":
             with col_rand:
                 rand_btn = st.button("🎲 랜덤 뽑기", use_container_width=True)
 
-            # 검색어 업데이트
             if search_input != st.session_state.search_query:
                 st.session_state.search_query = search_input
                 st.session_state.page_num = 1
                 st.rerun()
 
-            # 4. 필터링 및 정렬
+            # 4. 필터링
             filtered = []
             for c in enriched_challenges:
                 if st.session_state.search_query and (st.session_state.search_query not in c['name_txt'] and st.session_state.search_query not in c['desc_txt']):
@@ -388,12 +489,10 @@ elif st.session_state.current_view == "도전과제 (API)":
             elif sort_opt == "티어 높은 순": filtered.sort(key=lambda x: tier_order.index(x.get('level', 'NONE')), reverse=True)
             elif sort_opt == "티어 낮은 순": filtered.sort(key=lambda x: tier_order.index(x.get('level', 'NONE')))
 
-            # 페이지네이션 변수 계산
             items_per_page = 20
             total_pages = math.ceil(len(filtered) / items_per_page)
             if st.session_state.page_num > total_pages: st.session_state.page_num = 1
 
-            # Row 2: 이전 | 페이지 정보 | 다음 | (빈공간) | 체크박스 (유지)
             st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
             
             col_prev, col_spacer, col_page, col_spacer, col_next, col_spacer, col_chk = st.columns([4, 1, 2, 1, 4, 1, 3], vertical_alignment="center")
@@ -411,7 +510,7 @@ elif st.session_state.current_view == "도전과제 (API)":
             with col_chk:
                 show_imminent = st.checkbox("🔥 승급 임박 보기", value=False)
 
-            # 5. 랜덤 뽑기 로직
+            # 5. 랜덤 뽑기
             if rand_btn:
                 spin_placeholder = st.empty()
                 if enriched_challenges:
@@ -442,7 +541,7 @@ elif st.session_state.current_view == "도전과제 (API)":
                 imminent_list = []
                 for c in enriched_challenges:
                     cfg = conf.get(str(c['challengeId']), {})
-                    next_tier, next_th = calculate_next_level(c, cfg)
+                    next_tier, _, next_th = calculate_next_level(c, cfg)
                     if next_tier != "MAX":
                         diff = next_th - c.get('value', 0)
                         imminent_list.append({'c': c, 'diff': diff, 'next': next_tier, 'cfg': cfg})
@@ -481,11 +580,13 @@ elif st.session_state.current_view == "도전과제 (API)":
                 icon = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c['challengeId']}/tokens/{level.lower()}.png"
                 
                 with cols[i%4]:
+                    # [수정] 텍스트가 40자에서 잘리면서 '...'이 붙는 것을 방지
+                    # 대신 CSS로 2줄까지만 보여주고 넘치면 ... 처리 (flex-box, line-clamp 이용)
                     st.markdown(f"""
                     <div class="challenge-card-inner" style="border-bottom:4px solid {color};">
                         <img src="{icon}" width="60">
                         <div style="font-weight:bold; margin:10px 0; height:45px; overflow:hidden; color:#f0e6d2;">{c['name_txt']}</div>
-                        <div style="font-size:0.8em; color:#aaa; height:40px; overflow:hidden;">{c['desc_txt'][:40]}...</div>
+                        <div style="font-size:0.8em; color:#aaa; height:40px; overflow:hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{c['desc_txt']}</div>
                         <div style="margin-top:auto; width:100%;">
                             <div style="color:{color}; font-weight:bold;">{c['value']:,}</div>
                             <div style="color:{color}; font-size:0.8em;">{level}</div>
