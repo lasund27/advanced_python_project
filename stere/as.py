@@ -4,7 +4,6 @@ import urllib.parse
 import plotly.graph_objects as go
 import math
 import random
-import textwrap
 import time
 
 # --- 페이지 설정 ---
@@ -37,9 +36,9 @@ st.markdown("""
         transition: all 0.2s ease;
     }
     
-    /* [신규] 승급 임박 카드 강조 스타일 */
+    /* 승급 임박 카드 강조 스타일 */
     .imminent-card {
-        border: 2px solid #d13639 !important; /* 붉은색 강조 테두리 */
+        border: 2px solid #d13639 !important;
         background-color: #2a1e1e !important;
         box-shadow: 0 0 10px rgba(209, 54, 57, 0.2);
     }
@@ -51,6 +50,21 @@ st.markdown("""
         font-size: 0.8em;
         font-weight: bold;
         margin-bottom: 5px;
+    }
+
+    /* 칭호 보상 배지 스타일 */
+    .title-reward-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: #ffd700;
+        color: #000;
+        font-size: 0.7em;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 4px;
+        z-index: 5;
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
     }
 
     /* 랜덤 추첨 카드 스타일 */
@@ -153,6 +167,15 @@ def calculate_next_level(challenge_info, config_info):
         prev_threshold = 0
 
     return next_tier, prev_threshold, next_threshold
+
+def has_title_reward(config_item):
+    thresholds = config_item.get('thresholds', {})
+    for tier, val in thresholds.items():
+        if isinstance(val, dict) and 'rewards' in val:
+            for reward in val['rewards']:
+                if reward.get('type') == 'TITLE':
+                    return True
+    return False
 
 # --- API Functions ---
 @st.cache_data(ttl=3600)
@@ -281,8 +304,15 @@ with st.sidebar:
                     st.error("사용자 없음")
     
     st.markdown("---")
-    # [신규] 사이드바 체크박스 (기능 제어)
+    # [신규] 정렬 옵션 추가
+    sort_option = st.selectbox(
+        "정렬 기준",
+        ["점수 높은 순", "점수 낮은 순", "티어 높은 순", "티어 낮은 순"]
+    )
+    
+    st.markdown("---")
     show_imminent = st.checkbox("🔥 승급 임박 추천 보기", value=False)
+    # [수정] 칭호 필터링 체크박스 삭제됨
 
 if st.session_state.get('data') and st.session_state.get('config'):
     data = st.session_state.data
@@ -317,7 +347,7 @@ if st.session_state.get('data') and st.session_state.get('config'):
     challenges = sorted(data.get('challenges', []), key=lambda x: x['value'], reverse=True)
     real_challenges = [c for c in challenges if c['challengeId'] > 10]
 
-    # [신규 기능] 🔥 승급 임박 TOP 5 표시 (체크박스가 켜져있을 때만)
+    # [UI] 승급 임박 표시 로직 (체크박스 활성화 시)
     if show_imminent:
         imminent_list = []
         for c in real_challenges:
@@ -325,14 +355,10 @@ if st.session_state.get('data') and st.session_state.get('config'):
             cfg = conf.get(c_id, {})
             next_tier, _, next_th = calculate_next_level(c, cfg)
             
-            # MAX 레벨이 아니고, 아직 점수가 모자란 경우만
             if next_tier != "MAX" and c['value'] < next_th:
                 diff = next_th - c['value']
                 imminent_list.append({
-                    'diff': diff,
-                    'data': c,
-                    'config': cfg,
-                    'next_tier': next_tier
+                    'diff': diff, 'data': c, 'config': cfg, 'next_tier': next_tier
                 })
         
         imminent_list.sort(key=lambda x: x['diff'])
@@ -340,8 +366,6 @@ if st.session_state.get('data') and st.session_state.get('config'):
 
         if top_imminent:
             st.markdown("### 🔥 승급까지 한 걸음! (승급 임박 TOP 5)")
-            st.caption("다음 레벨까지 남은 점수가 가장 적은 도전과제들입니다. 한 판만 더 하면 승급할지도?")
-            
             i_cols = st.columns(5)
             for idx, item in enumerate(top_imminent):
                 c_data = item['data']
@@ -359,30 +383,28 @@ if st.session_state.get('data') and st.session_state.get('config'):
                 icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_data.get('challengeId')}/tokens/{curr_level.lower()}.png"
 
                 with i_cols[idx]:
-                    card_html = f"""
-                    <div class="challenge-card-inner imminent-card" style="height: 280px; margin-bottom: 10px;">
-                        <div class="imminent-badge">D-{diff:,.0f}점</div>
-                        <div class="card-icon-area" style="width:50px; height:50px; background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
-                            <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
-                        </div>
-                        <div class="card-title" style="font-size:1em; height:40px;">{c_name}</div>
-                        <div class="card-desc" style="font-size:0.75em; height:40px;">{c_desc}</div>
-                        <div class="card-footer">
-                            <div style="font-size:0.8em; color:#aaa;">Next: <span style="color:{get_tier_color(next_tier)}">{next_tier}</span></div>
-                        </div>
-                    </div>
-                    """
-                    st.markdown(textwrap.dedent(card_html), unsafe_allow_html=True)
-                    
+                    card_html = (
+                        f'<div class="challenge-card-inner imminent-card" style="height: 280px; margin-bottom: 10px;">'
+                        f'  <div class="imminent-badge">D-{diff:,.0f}점</div>'
+                        f'  <div class="card-icon-area" style="width:50px; height:50px; background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">'
+                        f'    <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display=\'none\';">'
+                        f'  </div>'
+                        f'  <div class="card-title" style="font-size:1em; height:40px;">{c_name}</div>'
+                        f'  <div class="card-desc" style="font-size:0.75em; height:40px;">{c_desc}</div>'
+                        f'  <div class="card-footer">'
+                        f'    <div style="font-size:0.8em; color:#aaa;">Next: <span style="color:{get_tier_color(next_tier)}">{next_tier}</span></div>'
+                        f'  </div>'
+                        f'</div>'
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
                     if st.button("상세", key=f"btn_imm_{c_data.get('challengeId')}", use_container_width=True):
                         show_detail_modal(c_data, c_conf)
-            
             st.divider()
 
     # 애니메이션 공간
     spin_placeholder = st.empty()
 
-    # 검색창 + 랜덤 추천 버튼
+    # 검색창 + 랜덤 추천
     col_search, col_rand = st.columns([3, 1], vertical_alignment="bottom")
     with col_search:
         search_input = st.text_input("🔍 도전과제 검색 (이름, 내용)", placeholder="예: 무작위 총력전, 펜타킬...", value=st.session_state.search_query)
@@ -394,7 +416,6 @@ if st.session_state.get('data') and st.session_state.get('config'):
                     temp_pick = random.choice(real_challenges)
                     c_id_temp = str(temp_pick['challengeId'])
                     config_temp = conf.get(c_id_temp, {})
-                    
                     names_temp = config_temp.get('localizedNames', {})
                     ko_temp = names_temp.get('ko_KR') or names_temp.get('en_US') or {}
                     c_name_temp = ko_temp.get('name', "Unknown")
@@ -402,54 +423,70 @@ if st.session_state.get('data') and st.session_state.get('config'):
                     color_temp = get_tier_color(level_temp)
                     icon_url_temp = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id_temp}/tokens/{level_temp.lower()}.png"
 
-                    temp_html = f"""
-                    <div class="spinning-card-container">
-                        <div class="challenge-card-inner spinning-card" style="border-bottom: 4px solid {color_temp}; opacity:0.9;">
-                            <div style="color:#c8aa6e; font-weight:bold; font-size:1.2em; margin-bottom:15px;">🎲 추첨 중...</div>
-                            <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
-                                <img src="{icon_url_temp}" style="width:100%; height:100%; object-fit:contain;">
-                            </div>
-                            <div class="card-title">{c_name_temp}</div>
-                            <div style="color:{color_temp}; font-weight:bold; font-size:1.2em; margin-top:10px;">{level_temp}</div>
-                        </div>
-                    </div>
-                    """
-                    spin_placeholder.markdown(textwrap.dedent(temp_html), unsafe_allow_html=True)
+                    temp_html = (
+                        f'<div class="spinning-card-container">'
+                        f'  <div class="challenge-card-inner spinning-card" style="border-bottom: 4px solid {color_temp}; opacity:0.9;">'
+                        f'    <div style="color:#c8aa6e; font-weight:bold; font-size:1.2em; margin-bottom:15px;">🎲 추첨 중...</div>'
+                        f'    <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">'
+                        f'      <img src="{icon_url_temp}" style="width:100%; height:100%; object-fit:contain;">'
+                        f'    </div>'
+                        f'    <div class="card-title">{c_name_temp}</div>'
+                        f'    <div style="color:{color_temp}; font-weight:bold; font-size:1.2em; margin-top:10px;">{level_temp}</div>'
+                        f'  </div>'
+                        f'</div>'
+                    )
+                    spin_placeholder.markdown(temp_html, unsafe_allow_html=True)
                     time.sleep(0.05 + i * 0.01)
 
                 spin_placeholder.empty()
-
                 random_pick = random.choice(real_challenges)
                 pick_config = conf.get(str(random_pick['challengeId']), {})
                 show_detail_modal(random_pick, pick_config)
             else:
                 st.toast("추천할 도전과제가 없습니다.")
 
-    # 검색 로직
+    # 검색 및 필터링 로직 (탭 & 칭호 & 검색)
     if search_input != st.session_state.search_query:
         st.session_state.search_query = search_input
         st.session_state.page_num = 1
         st.rerun()
 
     filtered_challenges = []
-    if search_input.strip():
-        query = search_input.lower().strip()
-        for c in real_challenges:
-            c_id = str(c['challengeId'])
-            config_item = conf.get(c_id, {})
+    
+    query = search_input.lower().strip() if search_input.strip() else ""
+
+    for c in real_challenges:
+        c_id = str(c['challengeId'])
+        config_item = conf.get(c_id, {})
+        
+        # [수정] 칭호 필터링 삭제됨 (조건문 제거)
+
+        # 필터 2: 검색어
+        names = config_item.get('localizedNames', {})
+        ko = names.get('ko_KR') or names.get('en_US') or {}
+        c_name = ko.get('name', '').lower()
+        c_desc = ko.get('description', '').lower()
+        
+        if query and (query not in c_name and query not in c_desc):
+            continue
             
-            names = config_item.get('localizedNames', {})
-            ko = names.get('ko_KR') or names.get('en_US') or {}
-            c_name = ko.get('name', '').lower()
-            c_desc = ko.get('description', '').lower()
-            
-            if query in c_name or query in c_desc:
-                filtered_challenges.append(c)
-    else:
-        filtered_challenges = real_challenges
+        filtered_challenges.append(c)
+
+    # [신규] 정렬 로직 적용
+    # 티어 순서 정의 (낮은 순 -> 높은 순)
+    tier_order_list = ['NONE', 'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER']
+    
+    if sort_option == "점수 높은 순":
+        filtered_challenges.sort(key=lambda x: x.get('value', 0), reverse=True)
+    elif sort_option == "점수 낮은 순":
+        filtered_challenges.sort(key=lambda x: x.get('value', 0))
+    elif sort_option == "티어 높은 순":
+        filtered_challenges.sort(key=lambda x: tier_order_list.index(x.get('level', 'NONE')), reverse=True)
+    elif sort_option == "티어 낮은 순":
+        filtered_challenges.sort(key=lambda x: tier_order_list.index(x.get('level', 'NONE')))
 
     if not filtered_challenges:
-        st.warning(f"'{search_input}'에 대한 검색 결과가 없습니다.")
+        st.warning(f"조건에 맞는 도전과제가 없습니다.")
     else:
         ITEMS_PER_PAGE = 20
         total_items = len(filtered_challenges)
@@ -493,21 +530,27 @@ if st.session_state.get('data') and st.session_state.get('config'):
             color = get_tier_color(level)
             icon_url = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c_id}/tokens/{level.lower()}.png"
 
+            title_badge_html = ""
+            if has_title_reward(config_item):
+                title_badge_html = '<div class="title-reward-badge">👑 TITLE</div>'
+
             with cols[i % 4]:
-                card_html = f"""
-                <div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">
-                    <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">
-                        <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display='none';">
-                    </div>
-                    <div class="card-title">{c_name}</div>
-                    <div class="card-desc">{c_desc}</div>
-                    <div class="card-footer">
-                        <div style="color:{color}; font-weight:bold; font-size:1.1em;">{points:,.0f} Pts</div>
-                        <div style="color:{color}; font-size:0.9em;">{level}</div>
-                    </div>
-                </div>
-                """
-                st.markdown(textwrap.dedent(card_html), unsafe_allow_html=True)
+                # [수정] 한 줄 연결 방식 (들여쓰기 오류 방지)
+                card_html = (
+                    f'<div class="challenge-card-inner" style="border-bottom: 4px solid {color}; margin-bottom: 5px;">'
+                    f'  {title_badge_html}'
+                    f'  <div class="card-icon-area" style="background:#121212; border-radius:50%; display:flex; justify-content:center; align-items:center;">'
+                    f'    <img src="{icon_url}" style="width:100%; height:100%; object-fit:contain;" onerror="this.style.display=\'none\';">'
+                    f'  </div>'
+                    f'  <div class="card-title">{c_name}</div>'
+                    f'  <div class="card-desc">{c_desc}</div>'
+                    f'  <div class="card-footer">'
+                    f'    <div style="color:{color}; font-weight:bold; font-size:1.1em;">{points:,.0f} Pts</div>'
+                    f'    <div style="color:{color}; font-size:0.9em;">{level}</div>'
+                    f'  </div>'
+                    f'</div>'
+                )
+                st.markdown(card_html, unsafe_allow_html=True)
                 
                 if st.button("상세 정보", key=f"btn_{c_id}", use_container_width=True):
                     show_detail_modal(challenge, config_item)
