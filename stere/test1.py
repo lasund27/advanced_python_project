@@ -40,12 +40,9 @@ if 'page_num' not in st.session_state:
     st.session_state.page_num = 1
 if 'search_query' not in st.session_state:
     st.session_state.search_query = ""
-
 # [NEW] 승급 임박 리스트 고정을 위한 상태 변수
 if 'imminent_cache' not in st.session_state:
     st.session_state.imminent_cache = []
-if 'last_calculated_riot_id' not in st.session_state:
-    st.session_state.last_calculated_riot_id = ""
 
 # -------------------------------------------------
 # 4. CSS Styling
@@ -110,10 +107,10 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
 .landing-title { font-size: 60px; font-weight: 800; text-align: center; color: #00bba3; margin-bottom: 10px; }
 .landing-subtitle { font-size: 18px; text-align: center; color: #a09b8c; margin-bottom: 30px; }
 
-/* [NEW] 프로그레스 바 스타일 (그라데이션) - 모달용 */
+/* 프로그레스 바 스타일 (그라데이션) - 모달용 */
 .progress-container {
     width: 100%;
-    background-color: #eee; /* 밝은 회색 배경 */
+    background-color: #eee;
     border-radius: 10px;
     height: 10px;
     margin-top: 5px;
@@ -123,10 +120,20 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
 .progress-bar-gradient {
     height: 100%;
     border-radius: 10px;
-    /* 빨강 -> 보라 -> 파랑 그라데이션 (스크린샷 참조) */
     background: linear-gradient(90deg, #ff3b3b, #a020f0, #0099ff);
     transition: width 0.5s ease-in-out;
 }
+
+/* [NEW] 인게임 정보 스타일 */
+.ingame-box {
+    background-color: #1a1a1a;
+    border: 1px solid #3c3c44;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+.team-header-blue { color: #4baeff; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #4baeff; padding-bottom: 5px; }
+.team-header-red { color: #f03a3a; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #f03a3a; padding-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -138,7 +145,6 @@ with st.sidebar:
         if st.button("🏠 홈으로 (검색 초기화)", use_container_width=True):
             st.session_state.riot_id = ""
             st.session_state.page_num = 1
-            # 캐시 초기화
             st.session_state.imminent_cache = []
             st.rerun()
         st.markdown("---")
@@ -204,6 +210,27 @@ def parse_mastery(html):
     return result
 
 HEADERS_API = {"X-Riot-Token": API_KEY, "User-Agent": "Mozilla/5.0"}
+
+# [NEW] 소환사 정보(PUUID)만 가져오는 함수 (인게임 조회용)
+@st.cache_data(ttl=3600)
+def get_puuid_only(name, tag):
+    try:
+        acc_url = f"https://asia.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{quote(name)}/{quote(tag)}"
+        acc_res = requests.get(acc_url, headers=HEADERS_API)
+        if acc_res.status_code == 200:
+            return acc_res.json().get('puuid')
+        return None
+    except: return None
+
+# [NEW] 인게임 정보 조회 함수 (spectator-v5)
+def get_active_game(puuid):
+    try:
+        url = f"https://kr.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
+        res = requests.get(url, headers=HEADERS_API)
+        if res.status_code == 200:
+            return res.json()
+        return None
+    except: return None
 
 @st.cache_data(ttl=3600)
 def get_player_data_api(name, tag):
@@ -281,47 +308,39 @@ def calculate_next_level(challenge_info, config_info):
 def show_detail_modal(c, cfg):
     level = c.get('level', 'NONE')
     
-    # [수정] 스크린샷과 같은 등급 색상 (GRANDMASTER 등)
-    # 기본 get_tier_color 함수를 사용하되, 강조를 위해 HTML에서 직접 스타일링
     color = get_tier_color(level)
-    if level == 'GRANDMASTER': color = '#ff3b3b' # 빨간색 강조
-    if level == 'CHALLENGER': color = '#0099ff' # 파란색 강조
+    if level == 'GRANDMASTER': color = '#ff3b3b'
+    if level == 'CHALLENGER': color = '#0099ff'
 
     icon = f"https://raw.communitydragon.org/latest/game/assets/challenges/config/{c['challengeId']}/tokens/{level.lower()}.png"
     
-    # 1. 헤더 (스크린샷 image_09503e.png 스타일)
     c1, c2 = st.columns([1, 4], vertical_alignment="center")
     with c1: 
         st.image(icon, width=80)
     with c2:
-        st.markdown(f"<h3 style='margin:0; padding:0; color:#0000000;'>{c.get('name_txt', 'Unknown')}</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='margin:0; padding:0; color:#f0e6d2;'>{c.get('name_txt', 'Unknown')}</h3>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:{color}; font-weight:bold; font-size:1.3em;'>{level}</span>", unsafe_allow_html=True)
         if c.get('percentile', 0) > 0:
              st.markdown(f"<div style='font-size:0.8em; color:#888; margin-top: 2px;'>👥 플레이어 중 상위 {c.get('percentile', 0)*100:.1f}%가 획득</div>", unsafe_allow_html=True)
     
     st.markdown("<hr style='margin: 15px 0; border-color: #333;'>", unsafe_allow_html=True)
     
-    # [수정] 설명 박스 (연한 하늘색 배경 + 진한 글씨)
     st.markdown(f"""
     <div style="background-color: #e8f4fd; padding: 15px; border-radius: 6px; color: #202b3d; font-weight: 500; font-size: 0.95em; margin-bottom: 20px;">
         {c.get('desc_txt', '설명 없음')}
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. 진행도 바 섹션 (스크린샷 스타일 완벽 구현)
     next_tier, prev_th, next_th = calculate_next_level(c, cfg)
     
     if next_tier != "MAX":
-        # 진행도 계산
         range_val = next_th - prev_th
         current_progress = c.get('value', 0) - prev_th
         if range_val <= 0: range_val = 1 
         ratio = min(max(current_progress / range_val, 0.0), 1.0) 
 
-        # 다음 단계 텍스트 (파란색)
-        st.markdown(f"<div style='font-size:0.9em; margin-bottom:5px; color: #000000;'>다음 단계: <span style='color:#0099ff; font-weight:bold;'>{next_tier}</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:0.9em; margin-bottom:5px; color: #ccc;'>다음 단계: <span style='color:#0099ff; font-weight:bold;'>{next_tier}</span></div>", unsafe_allow_html=True)
         
-        # 점수 표시 (좌: 현재, 우: 목표)
         st.markdown(f"""
         <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#888; margin-bottom:2px;">
             <span>{c.get('value', 0):,}</span>
@@ -329,14 +348,12 @@ def show_detail_modal(c, cfg):
         </div>
         """, unsafe_allow_html=True)
 
-        # 그라데이션 바
         st.markdown(f"""
         <div class="progress-container">
             <div class="progress-bar-gradient" style="width:{ratio*100}%;"></div>
         </div>
         """, unsafe_allow_html=True)
 
-        # 남은 점수 (우측 정렬)
         st.markdown(f"""
         <div style="text-align:right; font-size:0.8em; color:#aaa; margin-top:5px;">
             목표까지 {next_th - c.get('value', 0):,} 남음
@@ -371,6 +388,53 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
         
         st.markdown(f"## {name} <span style='color:#888;'>#{tag}</span>", unsafe_allow_html=True)
         st.divider()
+
+        # [NEW] 인게임 정보 조회 섹션
+        with st.expander("📺 인게임 정보 (실시간 게임 확인)", expanded=False):
+            if st.button("현재 게임 정보 불러오기", use_container_width=True):
+                if not API_KEY:
+                    st.error("API 키가 없습니다. 코드에 API 키를 입력해주세요.")
+                else:
+                    with st.spinner("게임 정보를 찾는 중..."):
+                        puuid = get_puuid_only(name, tag)
+                        if puuid:
+                            game_data = get_active_game(puuid)
+                            if game_data:
+                                # 게임 정보 표시
+                                team_blue = [] # Team ID 100
+                                team_red = []  # Team ID 200
+                                
+                                for p in game_data.get('participants', []):
+                                    p_riot_id = p.get('riotId', 'Unknown#KR1') # Riot ID가 없을 경우 대비
+                                    # Riot ID가 닉네임#태그 형태가 아닐 수 있으므로 처리 (API 버전에 따라 다름)
+                                    # spectator-v5는 riotId 필드를 줍니다.
+                                    if p.get('teamId') == 100:
+                                        team_blue.append((p_riot_id, p.get('championId')))
+                                    else:
+                                        team_red.append((p_riot_id, p.get('championId')))
+                                
+                                st.markdown("<div class='ingame-box'>", unsafe_allow_html=True)
+                                ig_c1, ig_c2 = st.columns(2)
+                                
+                                with ig_c1:
+                                    st.markdown("<div class='team-header-blue'>🟦 블루팀 (Blue Team)</div>", unsafe_allow_html=True)
+                                    for p_name, _ in team_blue:
+                                        # 클릭하면 해당 유저 검색
+                                        if st.button(f"{p_name}", key=f"btn_blue_{p_name}", use_container_width=True):
+                                            st.session_state.riot_id = p_name
+                                            st.rerun()
+                                
+                                with ig_c2:
+                                    st.markdown("<div class='team-header-red'>🟥 레드팀 (Red Team)</div>", unsafe_allow_html=True)
+                                    for p_name, _ in team_red:
+                                        if st.button(f"{p_name}", key=f"btn_red_{p_name}", use_container_width=True):
+                                            st.session_state.riot_id = p_name
+                                            st.rerun()
+                                st.markdown("</div>", unsafe_allow_html=True)
+                            else:
+                                st.info("현재 게임 중이 아닙니다. (또는 API 키 권한 문제)")
+                        else:
+                            st.error("소환사 정보를 찾을 수 없습니다. (Riot ID 확인)")
 
         c_html, m_html = fetch_opgg_data(name, tag)
         if c_html:
@@ -526,12 +590,11 @@ elif st.session_state.current_view == "도전과제 (API)":
                     show_imminent = st.checkbox("🔥 승급 임박 보기", value=False)
                 with sub_c2:
                     if show_imminent:
-                        # [NEW] 새로고침 버튼 - 클릭 시에만 캐시 초기화
                         if st.button("🔄", help="목록 새로고침", use_container_width=True):
                             st.session_state.imminent_cache = []
                             st.rerun()
 
-            # 5. 랜덤 뽑기 (카드 룰렛)
+            # 5. 랜덤 뽑기
             if rand_btn:
                 spin_placeholder = st.empty()
                 if enriched_challenges:
@@ -557,11 +620,10 @@ elif st.session_state.current_view == "도전과제 (API)":
                     final_pick = random.choice(enriched_challenges)
                     show_detail_modal(final_pick, conf.get(str(final_pick['challengeId']), {}))
 
-            # 6. 승급 임박 로직 (목록 고정 + 새로고침)
+            # 6. 승급 임박 로직 (목록 고정)
             if show_imminent:
                 limit_diff = 500
 
-                # 1. 만약 캐시가 비어있거나, 새로운 검색이라면 다시 계산
                 if not st.session_state.imminent_cache:
                     temp_list = []
                     for c in enriched_challenges:
@@ -578,7 +640,6 @@ elif st.session_state.current_view == "도전과제 (API)":
                     else:
                         st.session_state.imminent_cache = []
 
-                # 2. 캐시된 리스트 출력
                 top_imminent = st.session_state.imminent_cache
 
                 if top_imminent:
