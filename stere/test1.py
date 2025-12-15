@@ -45,7 +45,7 @@ if 'imminent_cache' not in st.session_state:
     st.session_state.imminent_cache = []
 if 'show_game_data' not in st.session_state:
     st.session_state['show_game_data'] = False # 인게임 정보 확장 상태 관리
-# [NEW] 현재 전적을 조회할 플레이어의 Riot ID (인게임 클릭용)
+# 현재 전적을 조회할 플레이어의 Riot ID (인게임 클릭용)
 if 'target_riot_id' not in st.session_state:
     st.session_state.target_riot_id = ""
 
@@ -480,10 +480,10 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
             st.session_state.target_riot_id = ""
             st.stop()
         
-        st.markdown(f"## {o_name} <span style='color:#888;'>#{o_tag}</span> (검색)", unsafe_allow_html=True)
+        st.markdown(f"## {o_name} <span style='color:#888;'>#{o_tag}</span> (검색 대상)", unsafe_allow_html=True)
         
         if original_riot_id != target_riot_id:
-             st.markdown(f"### 현재 전적 대상: {t_name} <span style='color:#888;'>#{t_tag}</span>", unsafe_allow_html=True)
+             st.markdown(f"### 🎯 현재 전적 대상: {t_name} <span style='color:#888;'>#{t_tag}</span>", unsafe_allow_html=True)
              st.button("🔍 원래 소환사 전적으로 돌아가기", key="reset_target_btn", 
                        on_click=lambda: st.session_state.update(target_riot_id=original_riot_id), use_container_width=True)
 
@@ -605,6 +605,10 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
             t_name, t_tag = target_riot_id.split("#")
             
             # 클릭된 플레이어 전적 로딩 메시지
+            if original_riot_id != target_riot_id:
+                st.markdown("### OP.GG 전적 (클릭된 플레이어)", unsafe_allow_html=True)
+            else:
+                st.markdown("### OP.GG 전적", unsafe_allow_html=True)
 
             c_html, m_html = fetch_opgg_data(t_name, t_tag)
             
@@ -614,7 +618,7 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
                 
                 c1, c2 = st.columns([1.5, 1])
                 with c1:
-                    st.subheader(f"모스트 픽 ({t_name}#{t_tag})")
+                    st.subheader(f"모스트 픽 (최근 {t_name}#{t_tag})")
                     if not champs: st.warning("최근 랭크 데이터가 없습니다.")
                     for c in champs:
                         tot = c['wins'] + c['losses']
@@ -633,6 +637,7 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
                         </div>
                         """, unsafe_allow_html=True)
                 with c2:
+                    st.subheader(f"숙련도 ({t_name}#{t_tag})")
                     cols = st.columns(2)
                     for i, m in enumerate(mastery):
                         with cols[i%2]:
@@ -670,13 +675,17 @@ elif st.session_state.current_view == "도전과제 (API)":
     
     else:
         name, tag = st.session_state.riot_id.split("#")
+        
+        # 🌟🌟🌟 수정된 부분: 여백 추가 🌟🌟🌟
+        st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True) 
+        
         with st.spinner("라이엇 API 조회 중..."):
             data, conf = get_player_data_api(name, tag)
             
-        if data and conf:
-            # 상단 여백
-            st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True)
+        # 🌟🌟🌟 스피너 위치를 맞추기 위해 상단 여백 제거 🌟🌟🌟
+        # st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True) # 원본 코드에서 여기에 있던 상단 여백 제거
 
+        if data and conf:
             # 1. 상단 정보
             total = data.get('totalPoints', {})
             cur, maxx = total.get('current', 0), total.get('max', 1)
