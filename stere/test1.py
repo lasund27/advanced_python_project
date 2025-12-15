@@ -124,7 +124,7 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
     transition: width 0.5s ease-in-out;
 }
 
-/* [NEW] 인게임 정보 스타일 */
+/* 인게임 정보 스타일 */
 .ingame-box {
     background-color: #1a1a1a;
     border: 1px solid #3c3c44;
@@ -134,6 +134,14 @@ div[data-testid="stSelectbox"] > div > div { background-color: #1e2328; color: #
 }
 .team-header-blue { color: #4baeff; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #4baeff; padding-bottom: 5px; }
 .team-header-red { color: #f03a3a; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #f03a3a; padding-bottom: 5px; }
+.ingame-player-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 5px;
+    border-radius: 5px;
+    background-color: #1e2328;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -211,7 +219,19 @@ def parse_mastery(html):
 
 HEADERS_API = {"X-Riot-Token": API_KEY, "User-Agent": "Mozilla/5.0"}
 
-# [NEW] 소환사 정보(PUUID)만 가져오는 함수 (인게임 조회용)
+# [NEW] DDragon 챔피언 정보 가져오기 (ID -> 이름/이미지 매핑용)
+@st.cache_data(ttl=86400)
+def get_champion_map():
+    try:
+        ver_res = requests.get("https://ddragon.leagueoflegends.com/api/versions.json")
+        version = ver_res.json()[0]
+        res = requests.get(f"https://ddragon.leagueoflegends.com/cdn/{version}/data/ko_KR/champion.json")
+        data = res.json()['data']
+        # Key(ID) : {'name': 이름, 'id': 영문ID(이미지용)}
+        return {v['key']: {'name': v['name'], 'id': v['id']} for k, v in data.items()}, version
+    except: return {}, "latest"
+
+# 소환사 정보(PUUID)만 가져오는 함수
 @st.cache_data(ttl=3600)
 def get_puuid_only(name, tag):
     try:
@@ -222,7 +242,7 @@ def get_puuid_only(name, tag):
         return None
     except: return None
 
-# [NEW] 인게임 정보 조회 함수 (spectator-v5)
+# 인게임 정보 조회 함수
 def get_active_game(puuid):
     try:
         url = f"https://kr.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
@@ -400,36 +420,58 @@ if st.session_state.current_view == "소환사 분석 (OP.GG)":
                         if puuid:
                             game_data = get_active_game(puuid)
                             if game_data:
+                                # 챔피언 정보 로드
+                                champ_map, d_ver = get_champion_map()
+                                
                                 # 게임 정보 표시
                                 team_blue = [] # Team ID 100
                                 team_red = []  # Team ID 200
                                 
                                 for p in game_data.get('participants', []):
-                                    p_riot_id = p.get('riotId', 'Unknown#KR1') # Riot ID가 없을 경우 대비
-                                    # Riot ID가 닉네임#태그 형태가 아닐 수 있으므로 처리 (API 버전에 따라 다름)
-                                    # spectator-v5는 riotId 필드를 줍니다.
+                                    p_riot_id = p.get('riotId', 'Unknown#KR1')
+                                    c_id = str(p.get('championId'))
+                                    c_info = champ_map.get(c_id, {'name': 'Unknown', 'id': None})
+                                    
+                                    # 챔피언 이미지 URL
+                                    c_img_url = ""
+                                    if c_info['id']:
+                                        c_img_url = f"https://ddragon.leagueoflegends.com/cdn/{d_ver}/img/champion/{c_info['id']}.png"
+                                    
+                                    player_info = {
+                                        'name': p_riot_id,
+                                        'champ_name': c_info['name'],
+                                        'img': c_img_url
+                                    }
+
                                     if p.get('teamId') == 100:
-                                        team_blue.append((p_riot_id, p.get('championId')))
+                                        team_blue.append(player_info)
                                     else:
-                                        team_red.append((p_riot_id, p.get('championId')))
+                                        team_red.append(player_info)
                                 
                                 st.markdown("<div class='ingame-box'>", unsafe_allow_html=True)
                                 ig_c1, ig_c2 = st.columns(2)
                                 
                                 with ig_c1:
                                     st.markdown("<div class='team-header-blue'>🟦 블루팀 (Blue Team)</div>", unsafe_allow_html=True)
-                                    for p_name, _ in team_blue:
-                                        # 클릭하면 해당 유저 검색
-                                        if st.button(f"{p_name}", key=f"btn_blue_{p_name}", use_container_width=True):
-                                            st.session_state.riot_id = p_name
-                                            st.rerun()
+                                    for p in team_blue:
+                                        c1_sub, c2_sub = st.columns([1, 4])
+                                        with c1_sub:
+                                            if p['img']: st.image(p['img'], width=40)
+                                        with c2_sub:
+                                            if st.button(f"{p['champ_name']} - {p['name']}", key=f"btn_b_{p['name']}", use_container_width=True):
+                                                st.session_state.riot_id = p['name']
+                                                st.rerun()
                                 
                                 with ig_c2:
                                     st.markdown("<div class='team-header-red'>🟥 레드팀 (Red Team)</div>", unsafe_allow_html=True)
-                                    for p_name, _ in team_red:
-                                        if st.button(f"{p_name}", key=f"btn_red_{p_name}", use_container_width=True):
-                                            st.session_state.riot_id = p_name
-                                            st.rerun()
+                                    for p in team_red:
+                                        c1_sub, c2_sub = st.columns([1, 4])
+                                        with c1_sub:
+                                            if p['img']: st.image(p['img'], width=40)
+                                        with c2_sub:
+                                            if st.button(f"{p['champ_name']} - {p['name']}", key=f"btn_r_{p['name']}", use_container_width=True):
+                                                st.session_state.riot_id = p['name']
+                                                st.rerun()
                                 st.markdown("</div>", unsafe_allow_html=True)
                             else:
                                 st.info("현재 게임 중이 아닙니다. (또는 API 키 권한 문제)")
